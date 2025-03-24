@@ -1,15 +1,15 @@
-
 import React from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { Navbar } from './Navbar';
+import Navbar from './Navbar';
 import { Footer } from './Footer';
 
 interface PrivateRouteProps {
   requireAdmin?: boolean;
+  element?: React.ReactNode;
 }
 
-export const PrivateRoute: React.FC<PrivateRouteProps> = ({ requireAdmin = false }) => {
+export const PrivateRoute: React.FC<PrivateRouteProps> = ({ requireAdmin = false, element }) => {
   const { currentUser, isAdmin, loading } = useAuth();
   const location = useLocation();
 
@@ -27,6 +27,10 @@ export const PrivateRoute: React.FC<PrivateRouteProps> = ({ requireAdmin = false
 
   if (requireAdmin && !isAdmin) {
     return <Navigate to="/dashboard" replace />;
+  }
+
+  if (element) {
+    return <>{element}</>;
   }
 
   return (
