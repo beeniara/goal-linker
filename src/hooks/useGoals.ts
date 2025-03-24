@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -30,16 +30,19 @@ export function useGoals() {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    const fetchGoals = async () => {
-      if (!currentUser) return;
+    if (!currentUser) {
+      setLoading(false);
+      return;
+    }
+    
+    setLoading(true);
+    
+    try {
+      // This uses onSnapshot to listen for real-time updates
+      const goalsRef = collection(db, 'goals');
+      const q = query(goalsRef, where('userId', '==', currentUser.uid));
       
-      try {
-        // This is a placeholder for the actual Firebase query
-        const goalsRef = collection(db, 'goals');
-        // Use where clause only if the field exists in your Firestore documents
-        const q = query(goalsRef, where('userId', '==', currentUser.uid));
-        const querySnapshot = await getDocs(q);
-        
+      const unsubscribe = onSnapshot(q, (querySnapshot) => {
         const goalsList: Goal[] = [];
         querySnapshot.forEach((doc) => {
           const data = doc.data();
@@ -62,7 +65,8 @@ export function useGoals() {
         });
         
         setGoals(goalsList);
-      } catch (error) {
+        setLoading(false);
+      }, (error) => {
         console.error('Error fetching goals:', error);
         setError('Failed to load goals. Please check your connection or permissions.');
         toast({
@@ -70,12 +74,22 @@ export function useGoals() {
           description: 'Failed to load goals. Please try again.',
           variant: 'destructive',
         });
-      } finally {
         setLoading(false);
-      }
-    };
-
-    fetchGoals();
+      });
+      
+      // Clean up subscription when component unmounts
+      return () => unsubscribe();
+      
+    } catch (error) {
+      console.error('Error setting up goals listener:', error);
+      setError('Failed to connect to goals service. Please try again later.');
+      toast({
+        title: 'Error',
+        description: 'Failed to connect to goals service. Please try again later.',
+        variant: 'destructive',
+      });
+      setLoading(false);
+    }
   }, [currentUser, toast]);
 
   // Filter goals based on active tab and search query

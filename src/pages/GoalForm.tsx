@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { doc, getDoc, setDoc, updateDoc, collection, serverTimestamp } from 'firebase/firestore';
@@ -27,6 +26,9 @@ const formSchema = z.object({
   targetDate: z.date(),
   status: z.enum(['not-started', 'in-progress', 'completed', 'abandoned']),
   priority: z.enum(['low', 'medium', 'high']),
+  type: z.enum(['fundraising', 'purchase', 'general']),
+  target: z.number().optional(),
+  current: z.number().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -38,6 +40,7 @@ const GoalForm = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [fetchingGoal, setFetchingGoal] = useState(isEditing);
+  const [goalType, setGoalType] = useState<'fundraising' | 'purchase' | 'general'>('general');
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -48,8 +51,16 @@ const GoalForm = () => {
       targetDate: new Date(new Date().setMonth(new Date().getMonth() + 3)),
       status: 'not-started',
       priority: 'medium',
+      type: 'general',
+      target: 0,
+      current: 0,
     },
   });
+
+  useEffect(() => {
+    const type = form.watch('type');
+    setGoalType(type as 'fundraising' | 'purchase' | 'general');
+  }, [form.watch('type')]);
 
   useEffect(() => {
     const fetchGoal = async () => {
@@ -59,13 +70,17 @@ const GoalForm = () => {
         const goalDoc = await getDoc(doc(db, 'goals', id as string));
         if (goalDoc.exists()) {
           const goalData = goalDoc.data();
+          setGoalType(goalData.type || 'general');
           form.reset({
             title: goalData.title,
             description: goalData.description,
             category: goalData.category || '',
-            targetDate: goalData.targetDate.toDate(),
-            status: goalData.status,
-            priority: goalData.priority,
+            targetDate: goalData.targetDate?.toDate() || new Date(),
+            status: goalData.status || 'not-started',
+            priority: goalData.priority || 'medium',
+            type: goalData.type || 'general',
+            target: goalData.target || 0,
+            current: goalData.current || 0,
           });
         } else {
           toast({
@@ -102,19 +117,21 @@ const GoalForm = () => {
         targetDate: values.targetDate,
         status: values.status,
         priority: values.priority,
+        type: values.type,
+        target: values.target || 0,
+        current: values.current || 0,
         userId: currentUser.uid,
         updatedAt: serverTimestamp(),
+        completed: values.status === 'completed',
       };
       
       if (isEditing) {
-        // Update existing goal
         await updateDoc(doc(db, 'goals', id as string), goalData);
         toast({
           title: 'Success',
           description: 'Goal updated successfully',
         });
       } else {
-        // Create new goal
         const goalsRef = collection(db, 'goals');
         const newGoal = {
           ...goalData,
@@ -217,6 +234,85 @@ const GoalForm = () => {
                   </FormItem>
                 )}
               />
+              
+              <FormField
+                control={form.control}
+                name="type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Goal Type</FormLabel>
+                    <Select 
+                      onValueChange={field.onChange} 
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select goal type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="general">General</SelectItem>
+                        <SelectItem value="fundraising">Fundraising</SelectItem>
+                        <SelectItem value="purchase">Purchase</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      What kind of goal are you setting?
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              {(goalType === 'fundraising' || goalType === 'purchase') && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <FormField
+                    control={form.control}
+                    name="target"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Target Amount</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="number" 
+                            placeholder="0"
+                            {...field} 
+                            onChange={e => field.onChange(parseFloat(e.target.value) || 0)}
+                            value={field.value || 0}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {goalType === 'fundraising' ? 'How much do you need to raise?' : 'How much does it cost?'}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="current"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Current Amount</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="number" 
+                            placeholder="0"
+                            {...field} 
+                            onChange={e => field.onChange(parseFloat(e.target.value) || 0)}
+                            value={field.value || 0}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {goalType === 'fundraising' ? 'How much have you raised so far?' : 'How much have you saved so far?'}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
               
               <FormField
                 control={form.control}
