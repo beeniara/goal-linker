@@ -1,48 +1,17 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { 
-  User,
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword, 
-  signOut, 
-  onAuthStateChanged,
-  GoogleAuthProvider,
-  signInWithPopup,
-  sendPasswordResetEmail,
-  updateProfile
-} from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase/config';
+import { User, onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../firebase/config';
 import { useToast } from '@/hooks/use-toast';
-
-type UserRole = 'user' | 'admin';
-
-interface UserData {
-  uid: string;
-  email: string | null;
-  displayName: string | null;
-  photoURL: string | null;
-  role: UserRole;
-  bio?: string;
-  phone?: string;
-  location?: string;
-  company?: string;
-  website?: string;
-  updatedAt?: Date;
-}
-
-interface AuthContextType {
-  currentUser: User | null;
-  userData: UserData | null;
-  signup: (email: string, password: string, name: string) => Promise<void>;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
-  googleSignIn: () => Promise<void>;
-  resetPassword: (email: string) => Promise<void>;
-  refreshUserData: () => Promise<void>;
-  loading: boolean;
-  isAdmin: boolean;
-}
+import { UserData, AuthContextType } from '@/types/auth';
+import { 
+  fetchUserData, 
+  signupUser, 
+  loginUser, 
+  logoutUser, 
+  googleSignInUser, 
+  resetUserPassword 
+} from '@/services/authService';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -60,47 +29,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   
-  const fetchUserData = async (user: User) => {
-    try {
-      const userDocRef = doc(db, 'users', user.uid);
-      const userDoc = await getDoc(userDocRef);
-      
-      if (userDoc.exists()) {
-        setUserData(userDoc.data() as UserData);
-      } else {
-        // Create user document if it doesn't exist
-        const newUserData: UserData = {
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName,
-          photoURL: user.photoURL,
-          role: 'user', // Default role
-        };
-        
-        await setDoc(userDocRef, newUserData);
-        setUserData(newUserData);
-      }
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch user data. Please try again.',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  // Add refreshUserData function
   const refreshUserData = async () => {
     if (!currentUser) return;
-    await fetchUserData(currentUser);
+    const data = await fetchUserData(currentUser);
+    if (data) {
+      setUserData(data);
+    }
   };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user) {
-        await fetchUserData(user);
+        const data = await fetchUserData(user);
+        if (data) {
+          setUserData(data);
+        }
       } else {
         setUserData(null);
       }
@@ -112,20 +56,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signup = async (email: string, password: string, name: string) => {
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      await updateProfile(userCredential.user, { displayName: name });
-      
-      // Create user document
-      const newUserData: UserData = {
-        uid: userCredential.user.uid,
-        email: userCredential.user.email,
-        displayName: name,
-        photoURL: null,
-        role: 'user',
-      };
-      
-      await setDoc(doc(db, 'users', userCredential.user.uid), newUserData);
-      setUserData(newUserData);
+      const user = await signupUser(email, password, name);
+      const userData = await fetchUserData(user);
+      if (userData) {
+        setUserData(userData);
+      }
       
       toast({
         title: 'Account created',
@@ -144,7 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string) => {
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await loginUser(email, password);
       toast({
         title: 'Welcome back!',
         description: 'You have successfully logged in.',
@@ -162,23 +97,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const googleSignIn = async () => {
     try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      // Check if it's a new user
-      const userDocRef = doc(db, 'users', result.user.uid);
-      const userDoc = await getDoc(userDocRef);
+      const user = await googleSignInUser();
       
-      if (!userDoc.exists()) {
-        // Create user document for new Google sign-in
-        const newUserData: UserData = {
-          uid: result.user.uid,
-          email: result.user.email,
-          displayName: result.user.displayName,
-          photoURL: result.user.photoURL,
-          role: 'user',
-        };
-        
-        await setDoc(userDocRef, newUserData);
+      // Check if it's a new user by comparing userData state before and after
+      if (!userData || userData.uid !== user.uid) {
         toast({
           title: 'Account created',
           description: 'Your account has been created successfully!',
@@ -202,7 +124,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
-      await signOut(auth);
+      await logoutUser();
       toast({
         title: 'Logged out',
         description: 'You have been logged out successfully.',
@@ -220,7 +142,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const resetPassword = async (email: string) => {
     try {
-      await sendPasswordResetEmail(auth, email);
+      await resetUserPassword(email);
       toast({
         title: 'Password reset email sent',
         description: 'Check your email for a link to reset your password.',
