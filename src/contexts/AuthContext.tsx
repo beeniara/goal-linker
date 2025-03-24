@@ -23,6 +23,12 @@ interface UserData {
   displayName: string | null;
   photoURL: string | null;
   role: UserRole;
+  bio?: string;
+  phone?: string;
+  location?: string;
+  company?: string;
+  website?: string;
+  updatedAt?: Date;
 }
 
 interface AuthContextType {
@@ -33,6 +39,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   googleSignIn: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  refreshUserData: () => Promise<void>;
   loading: boolean;
   isAdmin: boolean;
 }
@@ -81,6 +88,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         variant: 'destructive',
       });
     }
+  };
+
+  // Add refreshUserData function
+  const refreshUserData = async () => {
+    if (!currentUser) return;
+    await fetchUserData(currentUser);
   };
 
   useEffect(() => {
@@ -233,6 +246,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     logout,
     googleSignIn,
     resetPassword,
+    refreshUserData,
     loading,
     isAdmin,
   };
