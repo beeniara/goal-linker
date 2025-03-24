@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { PrivateRoute } from "./components/layout/PrivateRoute";
 
@@ -27,7 +27,15 @@ import GoalForm from "./pages/GoalForm";
 import MilestoneForm from "./pages/MilestoneForm";
 import Profile from "./pages/Profile";
 
-const queryClient = new QueryClient();
+// Create a query client for React Query
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -48,25 +56,21 @@ const App = () => (
               
               {/* Project Routes */}
               <Route path="/projects" element={<Projects />} />
-              <Route path="/projects/:id" element={<ProjectDetail />} />
               <Route path="/projects/new" element={<ProjectForm />} />
+              <Route path="/projects/:id" element={<ProjectDetail />} />
               <Route path="/projects/:id/edit" element={<ProjectForm />} />
-              <Route path="/projects/:id/invite" element={<ProjectDetail />} />
               
               {/* Task Routes */}
               <Route path="/tasks" element={<Tasks />} />
-              <Route path="/tasks/:id" element={<TaskDetail />} />
               <Route path="/tasks/new" element={<TaskForm />} />
+              <Route path="/tasks/:id" element={<TaskDetail />} />
               <Route path="/tasks/:id/edit" element={<TaskForm />} />
-              <Route path="/tasks/:id/duplicate" element={<TaskForm />} />
               
               {/* Goal Routes */}
               <Route path="/goals" element={<Goals />} />
-              <Route path="/goals/:id" element={<GoalDetail />} />
               <Route path="/goals/new" element={<GoalForm />} />
+              <Route path="/goals/:id" element={<GoalDetail />} />
               <Route path="/goals/:id/edit" element={<GoalForm />} />
-              <Route path="/goals/:id/invite" element={<GoalDetail />} />
-              <Route path="/goals/:id/contribute" element={<GoalDetail />} />
               <Route path="/goals/:id/milestones/new" element={<MilestoneForm />} />
               
               {/* User Routes */}

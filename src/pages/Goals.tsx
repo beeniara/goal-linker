@@ -35,6 +35,7 @@ const Goals = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchGoals = async () => {
@@ -43,31 +44,35 @@ const Goals = () => {
       try {
         // This is a placeholder for the actual Firebase query
         const goalsRef = collection(db, 'goals');
+        // Use where clause only if the field exists in your Firestore documents
         const q = query(goalsRef, where('userId', '==', currentUser.uid));
         const querySnapshot = await getDocs(q);
         
         const goalsList: Goal[] = [];
         querySnapshot.forEach((doc) => {
           const data = doc.data();
-          goalsList.push({
-            id: doc.id,
-            title: data.title,
-            description: data.description,
-            type: data.type,
-            target: data.target,
-            current: data.current,
-            deadline: data.deadline ? data.deadline.toDate() : undefined,
-            projectId: data.projectId,
-            category: data.category,
-            milestones: data.milestones,
-            members: data.members,
-            completed: data.completed,
-          });
+          if (data) {  // Make sure data exists
+            goalsList.push({
+              id: doc.id,
+              title: data.title || 'Untitled Goal',
+              description: data.description || '',
+              type: data.type || 'general',
+              target: data.target || 0,
+              current: data.current || 0,
+              deadline: data.deadline ? data.deadline.toDate() : undefined,
+              projectId: data.projectId,
+              category: data.category,
+              milestones: data.milestones || [],
+              members: data.members || [],
+              completed: data.completed || false,
+            });
+          }
         });
         
         setGoals(goalsList);
       } catch (error) {
         console.error('Error fetching goals:', error);
+        setError('Failed to load goals. Please check your connection or permissions.');
         toast({
           title: 'Error',
           description: 'Failed to load goals. Please try again.',
@@ -81,7 +86,10 @@ const Goals = () => {
     fetchGoals();
   }, [currentUser, toast]);
 
+  // Safety check - if there are no goals, show an empty state instead of trying to render potentially undefined data
   const filteredGoals = goals.filter(goal => {
+    if (!goal) return false;
+    
     // Filter by tab
     if (activeTab === 'active' && goal.completed) return false;
     if (activeTab === 'completed' && !goal.completed) return false;
@@ -142,6 +150,12 @@ const Goals = () => {
           />
         </div>
       </div>
+      
+      {error && (
+        <div className="bg-destructive/10 text-destructive p-4 rounded-md">
+          {error}
+        </div>
+      )}
       
       <Tabs defaultValue="all" onValueChange={setActiveTab}>
         <TabsList className="mb-4">

@@ -15,8 +15,11 @@ import {
   FormMessage 
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { toast } from '@/hooks/use-toast';
+import { AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const signupSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters' }),
@@ -34,6 +37,7 @@ export const SignupForm = () => {
   const { signup, googleSignIn } = useAuth();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupSchema),
@@ -47,11 +51,34 @@ export const SignupForm = () => {
 
   const onSubmit = async (data: SignupFormValues) => {
     setIsLoading(true);
+    setError(null);
+    
     try {
       await signup(data.email, data.password, data.name);
+      toast({
+        title: "Account created",
+        description: "You've successfully created an account",
+      });
       navigate('/dashboard');
     } catch (error) {
-      // Error is handled in the auth context
+      console.error("Signup error:", error);
+      
+      // Handle Firebase errors
+      if (error instanceof Error) {
+        const errorMessage = error.message;
+        
+        if (errorMessage.includes('email-already-in-use')) {
+          setError('This email is already in use. Please try another one or login.');
+        } else if (errorMessage.includes('network-request-failed')) {
+          setError('Network error. Please check your connection.');
+        } else if (errorMessage.includes('permission')) {
+          setError('Permission denied. Please contact support.');
+        } else {
+          setError('Failed to create an account. Please try again.');
+        }
+      } else {
+        setError('An unexpected error occurred. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -59,11 +86,25 @@ export const SignupForm = () => {
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
+    setError(null);
+    
     try {
       await googleSignIn();
       navigate('/dashboard');
     } catch (error) {
-      // Error is handled in the auth context
+      console.error("Google sign-in error:", error);
+      
+      if (error instanceof Error) {
+        if (error.message.includes('popup-closed-by-user')) {
+          setError('Sign-in was cancelled. Please try again.');
+        } else if (error.message.includes('permission')) {
+          setError('Permission denied. Please contact support.');
+        } else {
+          setError('Failed to sign in with Google. Please try again.');
+        }
+      } else {
+        setError('An unexpected error occurred. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -78,6 +119,14 @@ export const SignupForm = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
