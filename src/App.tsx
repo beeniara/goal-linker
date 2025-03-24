@@ -15,6 +15,13 @@ import NotFound from "./pages/NotFound";
 
 // Private Pages
 import Dashboard from "./pages/Dashboard";
+import Projects from "./pages/Projects";
+import ProjectDetail from "./pages/ProjectDetail";
+import Tasks from "./pages/Tasks";
+import TaskDetail from "./pages/TaskDetail";
+import Goals from "./pages/Goals";
+import GoalDetail from "./pages/GoalDetail";
+import Profile from "./pages/Profile";
 
 const queryClient = new QueryClient();
 
@@ -34,17 +41,33 @@ const App = () => (
             {/* Private Routes */}
             <Route element={<PrivateRoute />}>
               <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/projects" element={<Dashboard />} />
-              <Route path="/projects/:id" element={<Dashboard />} />
+              
+              {/* Project Routes */}
+              <Route path="/projects" element={<Projects />} />
+              <Route path="/projects/:id" element={<ProjectDetail />} />
               <Route path="/projects/new" element={<Dashboard />} />
-              <Route path="/tasks" element={<Dashboard />} />
-              <Route path="/tasks/:id" element={<Dashboard />} />
+              <Route path="/projects/:id/edit" element={<Dashboard />} />
+              <Route path="/projects/:id/invite" element={<Dashboard />} />
+              
+              {/* Task Routes */}
+              <Route path="/tasks" element={<Tasks />} />
+              <Route path="/tasks/:id" element={<TaskDetail />} />
               <Route path="/tasks/new" element={<Dashboard />} />
-              <Route path="/goals" element={<Dashboard />} />
-              <Route path="/goals/:id" element={<Dashboard />} />
+              <Route path="/tasks/:id/edit" element={<Dashboard />} />
+              <Route path="/tasks/:id/duplicate" element={<Dashboard />} />
+              
+              {/* Goal Routes */}
+              <Route path="/goals" element={<Goals />} />
+              <Route path="/goals/:id" element={<GoalDetail />} />
               <Route path="/goals/new" element={<Dashboard />} />
-              <Route path="/profile" element={<Dashboard />} />
-              <Route path="/settings" element={<Dashboard />} />
+              <Route path="/goals/:id/edit" element={<Dashboard />} />
+              <Route path="/goals/:id/invite" element={<Dashboard />} />
+              <Route path="/goals/:id/contribute" element={<Dashboard />} />
+              <Route path="/goals/:id/milestones/new" element={<Dashboard />} />
+              
+              {/* User Routes */}
+              <Route path="/profile" element={<Profile />} />
+              <Route path="/settings" element={<Profile />} />
             </Route>
             
             {/* Admin Routes */}
