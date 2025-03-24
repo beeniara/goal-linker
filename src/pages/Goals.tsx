@@ -6,7 +6,7 @@ import { Plus } from 'lucide-react';
 import { useGoals } from '@/hooks/useGoals';
 import GoalFilter from '@/components/goals/GoalFilter';
 import GoalList from '@/components/goals/GoalList';
-import { TabsContent } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 
 const Goals = () => {
   const { 
@@ -32,23 +32,25 @@ const Goals = () => {
         </Button>
       </div>
       
-      <GoalFilter 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
-        searchQuery={searchQuery} 
-        setSearchQuery={setSearchQuery} 
-      />
-      
-      <TabsContent value={activeTab} className="space-y-4 mt-0">
-        <GoalList 
-          goals={goals}
-          loading={loading} 
-          filteredGoals={filteredGoals} 
-          searchQuery={searchQuery} 
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <GoalFilter 
           activeTab={activeTab} 
-          error={error} 
+          setActiveTab={setActiveTab} 
+          searchQuery={searchQuery} 
+          setSearchQuery={setSearchQuery} 
         />
-      </TabsContent>
+        
+        <TabsContent value={activeTab} className="space-y-4 mt-0">
+          <GoalList 
+            goals={goals}
+            loading={loading} 
+            filteredGoals={filteredGoals} 
+            searchQuery={searchQuery} 
+            activeTab={activeTab} 
+            error={error} 
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
