@@ -1,38 +1,52 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, Clock, Target, DollarSign, ShoppingBag } from 'lucide-react';
+import { 
+  Card, 
+  CardContent, 
+  CardDescription, 
+  CardFooter, 
+  CardHeader, 
+  CardTitle 
+} from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { 
+  Calendar,
+  CheckCircle,
+  Flag,
+  Edit,
+  Star,
+  Users
+} from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+
+type Goal = {
+  id: string;
+  title: string;
+  description: string;
+  type: 'fundraising' | 'purchase' | 'general';
+  target: number;
+  current: number;
+  deadline?: Date;
+  projectId?: string;
+  projectName?: string;
+  category?: string;
+  milestones?: { title: string; completed: boolean }[];
+  members?: string[];
+  completed: boolean;
+};
 
 type GoalCardProps = {
-  goal: {
-    id: string;
-    title: string;
-    description: string;
-    type: 'fundraising' | 'purchase' | 'general';
-    target: number;
-    current: number;
-    deadline?: Date;
-    milestones?: { title: string; completed: boolean }[];
-    completed: boolean;
-  };
+  goal: Goal;
 };
 
 const GoalCard = ({ goal }: GoalCardProps) => {
-  const getGoalTypeIcon = (type: string) => {
-    switch (type) {
-      case 'fundraising':
-        return <DollarSign className="h-5 w-5" />;
-      case 'purchase':
-        return <ShoppingBag className="h-5 w-5" />;
-      case 'general':
-      default:
-        return <Target className="h-5 w-5" />;
-    }
-  };
-
+  // Calculate progress percentage (prevents division by zero)
+  const progress = goal.target ? Math.min(100, (goal.current / goal.target) * 100) : 0;
+  
+  // Format currency for fundraising and purchase goals
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -42,92 +56,110 @@ const GoalCard = ({ goal }: GoalCardProps) => {
     }).format(amount);
   };
 
+  // Get card style based on goal type
+  const getGoalTypeStyles = () => {
+    switch (goal.type) {
+      case 'fundraising':
+        return {
+          badge: 'bg-blue-100 text-blue-800',
+          icon: <Users className="h-4 w-4 mr-1" />,
+          label: 'Fundraising'
+        };
+      case 'purchase':
+        return {
+          badge: 'bg-purple-100 text-purple-800',
+          icon: <Star className="h-4 w-4 mr-1" />,
+          label: 'Purchase'
+        };
+      case 'general':
+      default:
+        return {
+          badge: 'bg-green-100 text-green-800',
+          icon: <Flag className="h-4 w-4 mr-1" />,
+          label: 'General'
+        };
+    }
+  };
+  
+  const styles = getGoalTypeStyles();
+
   return (
-    <Card className={`overflow-hidden ${goal.completed ? 'bg-muted/20' : ''}`}>
+    <Card className={`h-full ${goal.completed ? 'border-green-200 bg-green-50/30' : ''}`}>
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start">
-          <div className="flex items-center space-x-2">
-            <div className="bg-primary/10 p-1 rounded">
-              {getGoalTypeIcon(goal.type)}
-            </div>
-            <CardTitle className="text-lg">{goal.title}</CardTitle>
-          </div>
-          
-          {goal.completed ? (
-            <Badge className="bg-green-100 text-green-800">
-              <CheckCircle className="h-3 w-3 mr-1" />
-              Completed
-            </Badge>
-          ) : goal.deadline && new Date(goal.deadline) < new Date() ? (
-            <Badge className="bg-red-100 text-red-800">
-              <Clock className="h-3 w-3 mr-1" />
-              Overdue
-            </Badge>
-          ) : (
-            <Badge className="bg-blue-100 text-blue-800">
-              {goal.type.charAt(0).toUpperCase() + goal.type.slice(1)}
-            </Badge>
-          )}
+          <CardTitle className="font-bold">
+            {goal.title}
+          </CardTitle>
+          <Badge className={styles.badge}>
+            <span className="flex items-center">
+              {styles.icon}
+              {styles.label}
+            </span>
+          </Badge>
         </div>
-        <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-          {goal.description}
-        </p>
+        <CardDescription className="truncate max-w-full">
+          {goal.description || 'No description provided'}
+        </CardDescription>
       </CardHeader>
-      <CardContent className="pb-2">
-        <div className="space-y-4">
-          {goal.type !== 'general' && (
-            <div className="space-y-1">
-              <div className="flex justify-between text-sm">
-                <span>Progress:</span>
-                <span className="font-medium">
-                  {formatCurrency(goal.current)} of {formatCurrency(goal.target)}
-                  {goal.type === 'fundraising' ? ' raised' : ''}
-                </span>
-              </div>
-              <div className="w-full bg-muted rounded-full h-2.5">
-                <div
-                  className="bg-primary rounded-full h-2.5"
-                  style={{
-                    width: `${Math.min(100, Math.round((goal.current / goal.target) * 100))}%`
-                  }}
-                />
-              </div>
-              <div className="text-xs text-right text-muted-foreground">
-                {Math.round((goal.current / goal.target) * 100)}% {goal.completed ? 'Achieved' : 'Complete'}
-              </div>
-            </div>
-          )}
-          
-          {goal.type === 'general' && goal.milestones && goal.milestones.length > 0 && (
-            <div className="space-y-1">
-              <div className="text-sm flex justify-between">
-                <span>Milestones:</span>
-                <span>
-                  {goal.milestones.filter(m => m.completed).length}/{goal.milestones.length} completed
-                </span>
-              </div>
-              <div className="w-full bg-muted rounded-full h-2.5">
-                <div
-                  className="bg-primary rounded-full h-2.5"
-                  style={{
-                    width: `${Math.round((goal.milestones.filter(m => m.completed).length / goal.milestones.length) * 100)}%`
-                  }}
-                />
-              </div>
-            </div>
-          )}
-          
+      
+      <CardContent className="space-y-4">
+        <div className="space-y-1">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Progress</span>
+            <span className="font-medium">
+              {goal.type === 'fundraising' || goal.type === 'purchase' 
+                ? `${formatCurrency(goal.current)} of ${formatCurrency(goal.target)}`
+                : `${Math.round(progress)}%`
+              }
+            </span>
+          </div>
+          <Progress value={progress} className={`h-2 ${goal.completed ? 'bg-green-100' : ''}`} />
+        </div>
+        
+        <div className="flex flex-col space-y-1 text-sm">
           {goal.deadline && (
-            <div className="flex items-center text-xs text-muted-foreground">
-              <Clock className="h-3 w-3 mr-1" />
-              Deadline: {new Date(goal.deadline).toLocaleDateString()}
+            <div className="flex items-center text-muted-foreground">
+              <Calendar className="h-3.5 w-3.5 mr-1 flex-shrink-0" />
+              <span>
+                {goal.completed 
+                  ? 'Completed' 
+                  : `Due ${formatDistanceToNow(goal.deadline, { addSuffix: true })}`
+                }
+              </span>
+            </div>
+          )}
+          
+          {goal.projectId && goal.projectName && (
+            <div className="flex items-center text-muted-foreground">
+              <Flag className="h-3.5 w-3.5 mr-1 flex-shrink-0" />
+              <span className="truncate max-w-full">
+                Linked to project: 
+                <Link 
+                  to={`/projects/${goal.projectId}`} 
+                  className="ml-1 text-primary hover:underline"
+                >
+                  {goal.projectName}
+                </Link>
+              </span>
+            </div>
+          )}
+          
+          {goal.milestones && goal.milestones.length > 0 && (
+            <div className="flex items-center text-muted-foreground">
+              <CheckCircle className="h-3.5 w-3.5 mr-1 flex-shrink-0" />
+              <span>
+                {goal.milestones.filter(m => m.completed).length}/{goal.milestones.length} milestones
+              </span>
             </div>
           )}
         </div>
       </CardContent>
-      <CardFooter className="pt-2">
+      
+      <CardFooter className="pt-0">
         <Button asChild variant="outline" className="w-full">
-          <Link to={`/goals/${goal.id}`}>View Details</Link>
+          <Link to={`/goals/${goal.id}`}>
+            {goal.completed ? 'View Details' : 'Track Progress'}
+          </Link>
         </Button>
       </CardFooter>
     </Card>

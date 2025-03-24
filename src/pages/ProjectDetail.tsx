@@ -44,7 +44,8 @@ import {
   CheckCircle,
   Tag, 
   Star,
-  StarOff 
+  StarOff,
+  Flag
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -82,6 +83,7 @@ const ProjectDetail = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [linkedGoals, setLinkedGoals] = useState<{id: string, title: string}[]>([]);
 
   useEffect(() => {
     const fetchProjectAndTasks = async () => {
@@ -128,6 +130,22 @@ const ProjectDetail = () => {
           });
           
           setTasks(tasksList);
+          
+          // Fetch linked goals
+          const goalsRef = collection(db, 'goals');
+          const goalsQuery = query(goalsRef, where('projectId', '==', id));
+          const goalsSnapshot = await getDocs(goalsQuery);
+          
+          const goalsList: {id: string, title: string}[] = [];
+          goalsSnapshot.forEach((doc) => {
+            const data = doc.data();
+            goalsList.push({
+              id: doc.id,
+              title: data.title,
+            });
+          });
+          
+          setLinkedGoals(goalsList);
         } else {
           toast({
             title: 'Error',
@@ -304,6 +322,12 @@ const ProjectDetail = () => {
                   Invite Members
                 </Link>
               </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to={`/goals/new?projectId=${id}`} className="flex items-center">
+                  <Flag className="mr-2 h-4 w-4" />
+                  Create Goal
+                </Link>
+              </DropdownMenuItem>
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
                 onClick={() => setDeleteDialogOpen(true)}
@@ -367,6 +391,31 @@ const ProjectDetail = () => {
               </Button>
             </div>
           </div>
+          
+          {linkedGoals.length > 0 && (
+            <>
+              <Separator />
+              <div>
+                <h3 className="text-sm font-medium mb-2">Linked Goals</h3>
+                <div className="flex flex-wrap gap-2">
+                  {linkedGoals.map((goal) => (
+                    <Button key={goal.id} variant="outline" size="sm" asChild>
+                      <Link to={`/goals/${goal.id}`} className="flex items-center">
+                        <Flag className="h-3 w-3 mr-1" />
+                        {goal.title}
+                      </Link>
+                    </Button>
+                  ))}
+                  <Button variant="outline" size="sm" className="rounded-full" asChild>
+                    <Link to={`/goals/new?projectId=${id}`}>
+                      <Plus className="h-3 w-3 mr-1" />
+                      Add Goal
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 

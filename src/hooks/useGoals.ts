@@ -14,6 +14,7 @@ type Goal = {
   current: number;
   deadline?: Date;
   projectId?: string;
+  projectName?: string;
   category?: string;
   milestones?: { title: string; completed: boolean }[];
   members?: string[];
@@ -42,11 +43,34 @@ export function useGoals() {
       const goalsRef = collection(db, 'goals');
       const q = query(goalsRef, where('userId', '==', currentUser.uid));
       
-      const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const unsubscribe = onSnapshot(q, async (querySnapshot) => {
         const goalsList: Goal[] = [];
-        querySnapshot.forEach((doc) => {
+        const projectCache: Record<string, string> = {};
+        
+        for (const doc of querySnapshot.docs) {
           const data = doc.data();
           if (data) {  // Make sure data exists
+            let projectName;
+            
+            // Get project name if projectId exists
+            if (data.projectId) {
+              if (projectCache[data.projectId]) {
+                projectName = projectCache[data.projectId];
+              } else {
+                try {
+                  const projectDoc = await getDocs(
+                    query(collection(db, 'projects'), where('__name__', '==', data.projectId))
+                  );
+                  if (!projectDoc.empty) {
+                    projectName = projectDoc.docs[0].data().title;
+                    projectCache[data.projectId] = projectName;
+                  }
+                } catch (err) {
+                  console.error('Error fetching project name:', err);
+                }
+              }
+            }
+            
             goalsList.push({
               id: doc.id,
               title: data.title || 'Untitled Goal',
@@ -56,13 +80,14 @@ export function useGoals() {
               current: data.current || 0,
               deadline: data.deadline ? data.deadline.toDate() : undefined,
               projectId: data.projectId,
+              projectName: projectName,
               category: data.category,
               milestones: data.milestones || [],
               members: data.members || [],
               completed: data.completed || false,
             });
           }
-        });
+        }
         
         setGoals(goalsList);
         setLoading(false);
