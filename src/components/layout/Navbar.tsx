@@ -13,7 +13,7 @@ import {
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useAuth } from '@/contexts/AuthContext';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { Menu, X, User, LogOut, Settings, ChevronDown, BarChart, Briefcase, CheckSquare, Flag, Bell } from 'lucide-react';
+import { Menu, X, User, LogOut, Settings, ChevronDown, BarChart, Briefcase, CheckSquare, Flag, Bell, PiggyBank } from 'lucide-react';
 
 const Navbar = () => {
   const { currentUser, logout } = useAuth();
@@ -36,6 +36,7 @@ const Navbar = () => {
     { path: '/projects', label: 'Projects', icon: <Briefcase className="h-4 w-4 mr-2" /> },
     { path: '/tasks', label: 'Tasks', icon: <CheckSquare className="h-4 w-4 mr-2" /> },
     { path: '/goals', label: 'Goals', icon: <Flag className="h-4 w-4 mr-2" /> },
+    { path: '/savings', label: 'Savings', icon: <PiggyBank className="h-4 w-4 mr-2" /> },
     { path: '/reminders', label: 'Reminders', icon: <Bell className="h-4 w-4 mr-2" /> },
   ];
 

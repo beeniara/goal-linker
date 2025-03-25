@@ -25,6 +25,9 @@ import ChecklistReminder from './pages/ChecklistReminder';
 import NotFound from './pages/NotFound';
 import { Toaster } from './components/ui/toaster';
 import './App.css';
+import FinancialStrategies from './pages/FinancialStrategies';
+import NonFinancialSupport from './pages/NonFinancialSupport';
+import Savings from './pages/Savings';
 
 const queryClient = new QueryClient();
 
@@ -63,6 +66,11 @@ function App() {
                 <Route path="/goals/:id/edit" element={<PrivateRoute element={<GoalForm />} />} />
                 <Route path="/goals/:goalId/milestones/new" element={<PrivateRoute element={<MilestoneForm />} />} />
                 <Route path="/goals/:goalId/milestones/:id/edit" element={<PrivateRoute element={<MilestoneForm />} />} />
+                
+                {/* Savings Routes */}
+                <Route path="/savings" element={<PrivateRoute element={<Savings />} />} />
+                <Route path="/financial-strategies" element={<PrivateRoute element={<FinancialStrategies />} />} />
+                <Route path="/non-financial-support" element={<PrivateRoute element={<NonFinancialSupport />} />} />
                 
                 {/* Checklist Reminder Route */}
                 <Route path="/reminders" element={<PrivateRoute element={<ChecklistReminder />} />} />
