@@ -15,17 +15,22 @@ const firebaseConfig = {
   appId: "YOUR_APP_ID"
 };
 
-// Initialize Firebase
+// Initialize Firebase app instance with configuration
 const app = initializeApp(firebaseConfig);
 
 // Initialize Firebase services
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const storage = getStorage(app);
+export const auth = getAuth(app); // Authentication service
+export const db = getFirestore(app); // Firestore database service
+export const storage = getStorage(app); // Storage service for files
 
 // Enable offline persistence when possible
+// This allows the app to work offline by caching Firestore data
 try {
+  console.log("Attempting to enable Firestore persistence...");
   enableIndexedDbPersistence(db)
+    .then(() => {
+      console.log("Firestore persistence successfully enabled");
+    })
     .catch((err) => {
       if (err.code === 'failed-precondition') {
         // Multiple tabs open, persistence can only be enabled in one tab at a time
@@ -33,10 +38,18 @@ try {
       } else if (err.code === 'unimplemented') {
         // The current browser does not support persistence
         console.log('Persistence is not available in this browser');
+      } else {
+        console.error('Unknown error enabling persistence:', err);
       }
     });
 } catch (error) {
   console.error("Error enabling persistence:", error);
 }
+
+// Important: If you're seeing authentication or permission errors, check:
+// 1. Your Firebase API keys are correct
+// 2. Authentication is enabled in Firebase console
+// 3. Firestore security rules allow the operations you're attempting
+// 4. The user is properly authenticated before accessing data
 
 export default app;

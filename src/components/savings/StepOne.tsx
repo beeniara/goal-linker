@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { UseFormReturn } from 'react-hook-form';
-import { Target } from 'lucide-react';
+import { Target } from 'lucide-react'; // Lucide icon import
 import { SavingsGoalFormValues } from '@/schemas/savingsGoalSchema';
 import {
   FormControl,
@@ -20,13 +20,19 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+// Props interface for StepOne component
 interface StepOneProps {
-  form: UseFormReturn<SavingsGoalFormValues>;
+  form: UseFormReturn<SavingsGoalFormValues>; // The form context from react-hook-form
 }
 
+/**
+ * StepOne Component - First step in the savings goal creation process
+ * Handles the basic info about the savings goal (title, description, target amount, etc.)
+ */
 export function StepOne({ form }: StepOneProps) {
   return (
     <div className="space-y-6">
+      {/* Header section with icon */}
       <div className="flex items-center mb-6">
         <div className="bg-primary/10 p-3 rounded-full mr-4">
           <Target className="h-6 w-6 text-primary" />
@@ -37,6 +43,7 @@ export function StepOne({ form }: StepOneProps) {
         </div>
       </div>
 
+      {/* Title field - What the user is saving for */}
       <FormField
         control={form.control}
         name="title"
@@ -54,6 +61,7 @@ export function StepOne({ form }: StepOneProps) {
         )}
       />
       
+      {/* Optional description field */}
       <FormField
         control={form.control}
         name="description"
@@ -68,6 +76,7 @@ export function StepOne({ form }: StepOneProps) {
         )}
       />
       
+      {/* Total goal amount field */}
       <FormField
         control={form.control}
         name="target"
@@ -82,7 +91,9 @@ export function StepOne({ form }: StepOneProps) {
         )}
       />
       
+      {/* Contribution frequency and amount section - using a 2-column grid on larger screens */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Frequency selection dropdown */}
         <FormField
           control={form.control}
           name="frequency"
@@ -109,6 +120,7 @@ export function StepOne({ form }: StepOneProps) {
           )}
         />
         
+        {/* Contribution amount field */}
         <FormField
           control={form.control}
           name="amount"
