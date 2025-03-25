@@ -28,6 +28,9 @@ import './App.css';
 import FinancialStrategies from './pages/FinancialStrategies';
 import NonFinancialSupport from './pages/NonFinancialSupport';
 import Savings from './pages/Savings';
+import Privacy from './pages/Privacy';
+import Terms from './pages/Terms';
+import Contact from './pages/Contact';
 
 const queryClient = new QueryClient();
 
@@ -71,6 +74,11 @@ function App() {
                 <Route path="/savings" element={<PrivateRoute element={<Savings />} />} />
                 <Route path="/financial-strategies" element={<PrivateRoute element={<FinancialStrategies />} />} />
                 <Route path="/non-financial-support" element={<PrivateRoute element={<NonFinancialSupport />} />} />
+                
+                {/* Static Pages */}
+                <Route path="/privacy" element={<Privacy />} />
+                <Route path="/terms" element={<Terms />} />
+                <Route path="/contact" element={<Contact />} />
                 
                 {/* Checklist Reminder Route */}
                 <Route path="/reminders" element={<PrivateRoute element={<ChecklistReminder />} />} />
