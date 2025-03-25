@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -641,5 +642,11 @@ export default function FinancialStrategies() {
 }
 
 function SavingsList() {
-  return
-
+  return (
+    <div className="text-center py-16 border rounded-lg bg-muted/20">
+      <p className="text-muted-foreground mb-6">
+        Your saved financial strategies will appear here.
+      </p>
+    </div>
+  );
+}
