@@ -1,11 +1,10 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import { useToast } from '@/hooks/use-toast';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 import { useAuth } from '@/contexts/AuthContext';
 import { v4 as uuidv4 } from 'uuid';
@@ -53,9 +52,9 @@ import {
   Target,
   Hourglass,
   PlusCircle,
+  AlertCircle,
 } from 'lucide-react';
 
-// Form validation schema
 const savingsGoalSchema = z.object({
   title: z.string().min(2, { message: "Title must be at least 2 characters" }),
   description: z.string().optional(),
@@ -73,6 +72,8 @@ export default function FinancialStrategies() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [activeTab, setActiveTab] = useState('create');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const defaultValues: Partial<SavingsGoalFormValues> = {
     frequency: "weekly",
@@ -85,7 +86,18 @@ export default function FinancialStrategies() {
   });
 
   const onSubmit = async (data: SavingsGoalFormValues) => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      toast({
+        title: "Authentication Error",
+        description: "You must be logged in to create a savings goal.",
+        variant: "destructive",
+      });
+      navigate('/login');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
 
     try {
       const savingsId = uuidv4();
@@ -99,8 +111,8 @@ export default function FinancialStrategies() {
         contributionAmount: data.amount,
         method: data.method,
         current: 0,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
         contributions: [],
         members: data.method === 'group' ? [currentUser.uid] : [],
         completed: false,
@@ -114,11 +126,14 @@ export default function FinancialStrategies() {
       navigate('/savings');
     } catch (error) {
       console.error("Error creating savings goal:", error);
+      setError("Failed to create savings goal. Please ensure you have proper permissions and try again.");
       toast({
         title: "Error",
         description: "Failed to create savings goal. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -137,6 +152,16 @@ export default function FinancialStrategies() {
   return (
     <div className="container max-w-5xl py-8">
       <h1 className="text-3xl font-bold mb-6">Financial Strategies for Saving</h1>
+
+      {error && (
+        <div className="bg-destructive/10 text-destructive p-4 rounded-md mb-6 flex items-start">
+          <AlertCircle className="h-5 w-5 mr-2 mt-0.5" />
+          <div>
+            <p className="font-medium">Error</p>
+            <p>{error}</p>
+          </div>
+        </div>
+      )}
 
       <Tabs defaultValue="create" onValueChange={setActiveTab} value={activeTab}>
         <TabsList className="mb-8">
@@ -510,22 +535,22 @@ export default function FinancialStrategies() {
                   
                   <div className="flex justify-between pt-4">
                     {step > 1 ? (
-                      <Button type="button" variant="outline" onClick={prevStep}>
+                      <Button type="button" variant="outline" onClick={prevStep} disabled={isSubmitting}>
                         Back
                       </Button>
                     ) : (
-                      <Button type="button" variant="outline" onClick={() => navigate(-1)}>
+                      <Button type="button" variant="outline" onClick={() => navigate(-1)} disabled={isSubmitting}>
                         Cancel
                       </Button>
                     )}
                     
                     {step < 4 ? (
-                      <Button type="button" onClick={nextStep}>
+                      <Button type="button" onClick={nextStep} disabled={isSubmitting}>
                         Continue
                       </Button>
                     ) : (
-                      <Button type="submit">
-                        Create Savings Goal
+                      <Button type="submit" disabled={isSubmitting}>
+                        {isSubmitting ? 'Creating...' : 'Create Savings Goal'}
                       </Button>
                     )}
                   </div>
@@ -616,29 +641,5 @@ export default function FinancialStrategies() {
 }
 
 function SavingsList() {
-  // This component would fetch and display the user's savings goals
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold">My Savings Goals</h2>
-        <Button asChild>
-          <a href="/financial-strategies">
-            <PlusCircle className="h-4 w-4 mr-2" />
-            New Goal
-          </a>
-        </Button>
-      </div>
-      
-      <div className="text-center py-16 border rounded-lg bg-muted/20">
-        <PiggyBank className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-        <h3 className="text-xl font-medium mb-2">No savings goals yet</h3>
-        <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-          Start your saving journey by creating your first goal. It's the first step toward financial success!
-        </p>
-        <Button asChild>
-          <a href="/financial-strategies">Create Your First Savings Goal</a>
-        </Button>
-      </div>
-    </div>
-  );
-}
+  return
+

@@ -1,6 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { collection, getDocs, query, where } from 'firebase/firestore';
+import { db } from '@/firebase/config';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
 import {
   Tabs,
   TabsContent,
@@ -32,10 +36,109 @@ import {
   PiggyBank,
 } from 'lucide-react';
 
+// Type definition for a savings goal
+interface SavingsGoal {
+  id: string;
+  userId: string;
+  title: string;
+  description: string;
+  target: number;
+  current: number;
+  frequency: string;
+  contributionAmount: number;
+  method: string;
+  createdAt: any;
+  updatedAt: any;
+  completed: boolean;
+}
+
+// Type definition for a support strategy
+interface SupportStrategy {
+  id: string;
+  userId: string;
+  title: string;
+  description: string;
+  type: string;
+  method: string;
+  createdAt: any;
+  updatedAt: any;
+}
+
 export default function Savings() {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("financial");
   const [searchQuery, setSearchQuery] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [financialGoals, setFinancialGoals] = useState<SavingsGoal[]>([]);
+  const [supportStrategies, setSupportStrategies] = useState<SupportStrategy[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!currentUser) {
+        setIsLoading(false);
+        return;
+      }
+      
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        // Fetch financial goals
+        const financialQuery = query(
+          collection(db, 'savings'),
+          where('userId', '==', currentUser.uid)
+        );
+        
+        const financialSnapshot = await getDocs(financialQuery);
+        const financialData = financialSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as SavingsGoal[];
+        
+        setFinancialGoals(financialData);
+        
+        // Fetch support strategies
+        const supportQuery = query(
+          collection(db, 'support'),
+          where('userId', '==', currentUser.uid)
+        );
+        
+        const supportSnapshot = await getDocs(supportQuery);
+        const supportData = supportSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as SupportStrategy[];
+        
+        setSupportStrategies(supportData);
+      } catch (err) {
+        console.error("Error fetching data:", err);
+        setError("Failed to load your savings data. Please try again later.");
+        toast({
+          title: "Error",
+          description: "Failed to load your savings data. Please try again later.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, [currentUser, toast]);
+  
+  // Filter goals/strategies based on search query
+  const filteredFinancialGoals = financialGoals.filter(goal => 
+    goal.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    goal.description.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  
+  const filteredSupportStrategies = supportStrategies.filter(strategy => 
+    strategy.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    strategy.description.toLowerCase().includes(searchQuery.toLowerCase())
+  );
   
   return (
     <div className="container max-w-5xl py-8">
@@ -57,6 +160,20 @@ export default function Savings() {
           </Button>
         </div>
       </div>
+      
+      {error && (
+        <div className="bg-destructive/10 text-destructive p-4 rounded-md mb-6">
+          <p>{error}</p>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="mt-2"
+            onClick={() => window.location.reload()}
+          >
+            Try Again
+          </Button>
+        </div>
+      )}
       
       <Tabs defaultValue="financial" value={activeTab} onValueChange={setActiveTab}>
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
@@ -89,11 +206,23 @@ export default function Savings() {
         </div>
         
         <TabsContent value="financial">
-          <EmptyFinancialState />
+          {isLoading ? (
+            <SavingsGoalsSkeletons />
+          ) : filteredFinancialGoals.length > 0 ? (
+            <SavingsGoalsList goals={filteredFinancialGoals} />
+          ) : (
+            <EmptyFinancialState />
+          )}
         </TabsContent>
         
         <TabsContent value="support">
-          <EmptySupportState />
+          {isLoading ? (
+            <SavingsGoalsSkeletons />
+          ) : filteredSupportStrategies.length > 0 ? (
+            <SupportStrategiesList strategies={filteredSupportStrategies} />
+          ) : (
+            <EmptySupportState />
+          )}
         </TabsContent>
       </Tabs>
     </div>
@@ -130,48 +259,10 @@ function EmptySupportState() {
   );
 }
 
-// These would be populated from Firebase in a real implementation
-function SavingsGoalsList() {
+function SavingsGoalsSkeletons() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {/* Sample card - would be mapped from real data */}
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex justify-between">
-            <CardTitle className="font-bold">New Laptop</CardTitle>
-            <Badge>
-              <DollarSign className="h-3 w-3 mr-1" />
-              Financial
-            </Badge>
-          </div>
-          <CardDescription>Saving for a new work computer</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Progress</span>
-              <span className="font-medium">$400 of $1,200</span>
-            </div>
-            <Progress value={33} className="h-2" />
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <div className="flex items-center text-muted-foreground">
-              <Calendar className="h-3.5 w-3.5 mr-1" />
-              <span>3 months left</span>
-            </div>
-            <div className="flex items-center text-muted-foreground">
-              <User className="h-3.5 w-3.5 mr-1" />
-              <span>Personal</span>
-            </div>
-          </div>
-          <Button asChild variant="outline" className="w-full">
-            <Link to="/financial-goal/1">View Details</Link>
-          </Button>
-        </CardContent>
-      </Card>
-      
-      {/* Loading states would be shown while data fetches */}
-      {[1, 2].map((i) => (
+      {[1, 2, 3].map((i) => (
         <Card key={i}>
           <CardHeader>
             <Skeleton className="h-5 w-1/2 mb-2" />
@@ -190,6 +281,100 @@ function SavingsGoalsList() {
               <Skeleton className="h-4 w-1/3" />
             </div>
             <Skeleton className="h-9 w-full" />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function SavingsGoalsList({ goals }: { goals: SavingsGoal[] }) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {goals.map((goal) => (
+        <Card key={goal.id}>
+          <CardHeader className="pb-2">
+            <div className="flex justify-between">
+              <CardTitle className="font-bold">{goal.title}</CardTitle>
+              <Badge>
+                <DollarSign className="h-3 w-3 mr-1" />
+                Financial
+              </Badge>
+            </div>
+            <CardDescription>{goal.description}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Progress</span>
+                <span className="font-medium">${goal.current} of ${goal.target}</span>
+              </div>
+              <Progress 
+                value={(goal.current / goal.target) * 100} 
+                className="h-2" 
+              />
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center text-muted-foreground">
+                <Calendar className="h-3.5 w-3.5 mr-1" />
+                <span>
+                  {Math.ceil((goal.target - goal.current) / goal.contributionAmount)} {goal.frequency}s left
+                </span>
+              </div>
+              <div className="flex items-center text-muted-foreground">
+                <User className="h-3.5 w-3.5 mr-1" />
+                <span className="capitalize">{goal.method}</span>
+              </div>
+            </div>
+            <Button asChild variant="outline" className="w-full">
+              <Link to={`/savings/${goal.id}`}>View Details</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function SupportStrategiesList({ strategies }: { strategies: SupportStrategy[] }) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {strategies.map((strategy) => (
+        <Card key={strategy.id}>
+          <CardHeader className="pb-2">
+            <div className="flex justify-between">
+              <CardTitle className="font-bold">{strategy.title}</CardTitle>
+              <Badge variant="secondary">
+                <Heart className="h-3 w-3 mr-1" />
+                Support
+              </Badge>
+            </div>
+            <CardDescription>{strategy.description}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center text-sm mb-2">
+              <span className="text-muted-foreground mr-2">Type:</span>
+              <Badge variant="outline" className="capitalize">
+                {strategy.type}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center text-muted-foreground">
+                {strategy.method === 'single' ? (
+                  <User className="h-3.5 w-3.5 mr-1" />
+                ) : (
+                  <Users className="h-3.5 w-3.5 mr-1" />
+                )}
+                <span className="capitalize">{strategy.method}</span>
+              </div>
+              <div className="flex items-center text-muted-foreground">
+                <Calendar className="h-3.5 w-3.5 mr-1" />
+                <span>Created {new Date(strategy.createdAt.toDate()).toLocaleDateString()}</span>
+              </div>
+            </div>
+            <Button asChild variant="outline" className="w-full">
+              <Link to={`/support/${strategy.id}`}>View Details</Link>
+            </Button>
           </CardContent>
         </Card>
       ))}
