@@ -52,11 +52,26 @@ This guide will help you set up the Firebase services needed for the Project Lin
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users can read and write their own data
+    // Allow read/write access based on user authentication
     match /users/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow create: if request.auth != null && request.auth.uid == userId;
-      allow update: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Savings collection rules
+    match /savings/{savingsId} {
+      allow read: if request.auth != null && (resource.data.userId == request.auth.uid || 
+                                              resource.data.members[request.auth.uid] == true);
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && 
+                             (resource.data.userId == request.auth.uid || 
+                              resource.data.members[request.auth.uid] == true);
+    }
+    
+    // Support collection rules
+    match /support/{supportId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
     
     // Projects rules
