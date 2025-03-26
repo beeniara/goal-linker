@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -51,10 +50,8 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
     try {
       setRespondingTo(invitationId);
       setError(null);
-      console.log(`Processing ${accept ? 'acceptance' : 'decline'} for invitation ${invitationId}`);
       
       const response = await respondToInvitation(invitationId, userId, accept);
-      console.log('Response from server:', response);
       
       if (response.success) {
         toast({
@@ -69,7 +66,6 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
           prevInvitations.filter(inv => inv.id !== invitationId)
         );
       } else {
-        console.error('Error in response:', response);
         throw new Error(response.message || 'Failed to process the invitation');
       }
     } catch (error: any) {
@@ -120,6 +116,7 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.3 }}
+            className="block" // Ensure motion.div doesn't pass invalid props
           >
             <Alert className="border-l-4 border-l-primary">
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">

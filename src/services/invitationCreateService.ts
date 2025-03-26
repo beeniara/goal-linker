@@ -7,7 +7,7 @@ import { SavingsInvitation, InvitationResponse } from '@/types/invitation';
 /**
  * Checks if an invitation already exists for a specific savings goal and email
  */
-export async function checkExistingInvitation(savingsId: string, inviteeEmail: string): Promise<boolean> {
+export async function checkExistingInvitation(savingsId: string, inviteeEmail: string, inviterId: string): Promise<boolean> {
   try {
     console.log(`Checking if invitation exists for ${inviteeEmail} to savings group ${savingsId}`);
     
@@ -16,7 +16,8 @@ export async function checkExistingInvitation(savingsId: string, inviteeEmail: s
       invitationsRef, 
       where('savingsId', '==', savingsId),
       where('inviteeEmail', '==', inviteeEmail),
-      where('status', '==', 'pending')
+      where('status', '==', 'pending'),
+      where('inviterId', '==', inviterId)
     );
     
     const querySnapshot = await getDocs(q);
@@ -39,6 +40,7 @@ export async function inviteUserToSavings(
 ): Promise<InvitationResponse> {
   try {
     console.log(`Inviting ${inviteeEmail} to savings group ${savingsId}`);
+    console.log('Authenticated user UID (inviterId):', inviterId); // Debug log
     
     // Input validation
     if (!savingsId || !savingsTitle) {
@@ -64,7 +66,7 @@ export async function inviteUserToSavings(
     
     // Check if invitation already exists for this specific savings goal
     try {
-      const invitationExists = await checkExistingInvitation(savingsId, inviteeEmail);
+      const invitationExists = await checkExistingInvitation(savingsId, inviteeEmail, inviterId);
       if (invitationExists) {
         console.log('Invitation already exists for this specific savings goal');
         return { success: false, message: 'Invitation already sent to this user for this savings goal' };
