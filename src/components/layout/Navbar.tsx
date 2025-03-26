@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -43,6 +42,8 @@ const Navbar = () => {
         } catch (error) {
           console.error('Error fetching notifications:', error);
         }
+      } else {
+        setNotificationCount(0);
       }
     };
 

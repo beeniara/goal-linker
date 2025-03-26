@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,12 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
       try {
         setLoading(true);
         setError(null);
+        
+        if (!userEmail) {
+          setInvitations([]);
+          return;
+        }
+        
         console.log('Fetching invitations for:', userEmail);
         const userInvitations = await getUserInvitations(userEmail);
         console.log('Fetched invitations:', userInvitations);
@@ -45,6 +52,8 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
 
     if (userEmail) {
       fetchInvitations();
+    } else {
+      setLoading(false);
     }
   }, [userEmail, toast]);
 
@@ -55,6 +64,10 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
       
       const invitation = invitations.find(inv => inv.id === invitationId);
       console.log('Processing invitation response for:', invitation);
+      
+      if (!invitation) {
+        throw new Error('Invitation not found');
+      }
       
       const response = await respondToInvitation(invitationId, userId, accept);
       console.log('Invitation response result:', response);

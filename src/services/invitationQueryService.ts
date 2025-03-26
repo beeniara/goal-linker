@@ -10,6 +10,11 @@ export async function getUserInvitations(userEmail: string): Promise<SavingsInvi
   try {
     console.log(`Fetching invitations for user ${userEmail}`);
     
+    if (!userEmail) {
+      console.warn('No user email provided for fetching invitations');
+      return [];
+    }
+    
     const invitationsRef = collection(db, 'savingsInvitations');
     const q = query(
       invitationsRef, 
@@ -28,6 +33,7 @@ export async function getUserInvitations(userEmail: string): Promise<SavingsInvi
     return invitations;
   } catch (error) {
     console.error('Error fetching user invitations:', error);
-    throw error;
+    // Return empty array instead of throwing to prevent UI breakage
+    return [];
   }
 }
