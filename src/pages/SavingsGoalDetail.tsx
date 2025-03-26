@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,13 +16,12 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from '@/components/ui/form';
-import { PiggyBank, ArrowLeft, Calendar, User, DollarSign, Clock, Plus, ChevronRight } from 'lucide-react';
+import { PiggyBank, ArrowLeft, Calendar, User, DollarSign, Clock, Plus } from 'lucide-react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import { format } from 'date-fns';
 
-// Define the contribution form schema
 const contributionFormSchema = z.object({
   amount: z.string()
     .min(1, { message: "Amount is required" })
@@ -44,7 +42,6 @@ const SavingsGoalDetail = () => {
   const [contributionLoading, setContributionLoading] = useState(false);
   const [showContributionForm, setShowContributionForm] = useState(false);
 
-  // Initialize the form
   const form = useForm<ContributionFormValues>({
     resolver: zodResolver(contributionFormSchema),
     defaultValues: {
@@ -53,7 +50,6 @@ const SavingsGoalDetail = () => {
     },
   });
 
-  // Load the savings goal data when the component mounts
   useEffect(() => {
     const fetchSavingsGoal = async () => {
       if (!id || !currentUser) {
@@ -88,7 +84,6 @@ const SavingsGoalDetail = () => {
     fetchSavingsGoal();
   }, [id, currentUser, navigate, toast]);
 
-  // Handle contribution form submission
   const onSubmit = async (data: ContributionFormValues) => {
     if (!currentUser || !id) return;
 
@@ -97,16 +92,13 @@ const SavingsGoalDetail = () => {
       const amount = Number(data.amount);
       const updatedGoal = await addContribution(id, currentUser.uid, amount, data.note || '');
       
-      // Update the local state with the new data
       setSavingsGoal(updatedGoal);
       
-      // Show success toast
       toast({
         title: "Contribution Added",
         description: `$${amount.toFixed(2)} has been added to your savings goal.`,
       });
       
-      // Reset the form and hide it
       form.reset();
       setShowContributionForm(false);
     } catch (error) {
@@ -121,13 +113,11 @@ const SavingsGoalDetail = () => {
     }
   };
 
-  // Calculate progress percentage
   const calculateProgress = () => {
     if (!savingsGoal || savingsGoal.target === 0) return 0;
     return Math.min(100, (savingsGoal.current / savingsGoal.target) * 100);
   };
 
-  // Format currency amount
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -136,7 +126,29 @@ const SavingsGoalDetail = () => {
     }).format(amount);
   };
 
-  // Show skeleton loading UI while data is being fetched
+  const formatTimestamp = (timestamp: any): string => {
+    if (!timestamp) return 'Date unknown';
+    
+    try {
+      if (timestamp.toDate && typeof timestamp.toDate === 'function') {
+        return format(timestamp.toDate(), "MMM d, yyyy 'at' h:mm a");
+      }
+      
+      if (timestamp instanceof Date) {
+        return format(timestamp, "MMM d, yyyy 'at' h:mm a");
+      }
+      
+      if (timestamp.seconds) {
+        return format(new Date(timestamp.seconds * 1000), "MMM d, yyyy 'at' h:mm a");
+      }
+      
+      return format(new Date(timestamp), "MMM d, yyyy 'at' h:mm a");
+    } catch (error) {
+      console.error("Error formatting date:", error, timestamp);
+      return 'Invalid date';
+    }
+  };
+
   if (loading) {
     return (
       <div className="container max-w-4xl mx-auto p-6 space-y-6 animate-pulse">
@@ -147,7 +159,6 @@ const SavingsGoalDetail = () => {
     );
   }
 
-  // If no savings goal was found
   if (!savingsGoal) {
     return (
       <div className="container max-w-4xl mx-auto p-6">
@@ -166,7 +177,6 @@ const SavingsGoalDetail = () => {
 
   return (
     <div className="container max-w-4xl mx-auto p-6 space-y-6">
-      {/* Back button */}
       <Button variant="ghost" asChild className="mb-4 px-0">
         <Link to="/savings" className="flex items-center">
           <ArrowLeft className="h-4 w-4 mr-2" />
@@ -174,7 +184,6 @@ const SavingsGoalDetail = () => {
         </Link>
       </Button>
 
-      {/* Savings Goal Overview Card */}
       <Card>
         <CardHeader>
           <div className="flex justify-between items-start">
@@ -193,7 +202,6 @@ const SavingsGoalDetail = () => {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Progress Section */}
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Progress</span>
@@ -210,7 +218,6 @@ const SavingsGoalDetail = () => {
             </div>
           </div>
 
-          {/* Contribution Form (conditionally rendered) */}
           {showContributionForm && (
             <Card className="border-dashed">
               <CardHeader className="py-3">
@@ -273,7 +280,6 @@ const SavingsGoalDetail = () => {
             </Card>
           )}
 
-          {/* Savings Details */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <h3 className="text-sm font-medium">Savings Method</h3>
@@ -295,7 +301,6 @@ const SavingsGoalDetail = () => {
         </CardContent>
       </Card>
 
-      {/* Contribution History */}
       <Card>
         <CardHeader>
           <CardTitle>Contribution History</CardTitle>
@@ -317,17 +322,17 @@ const SavingsGoalDetail = () => {
               {savingsGoal.contributions
                 .slice()
                 .sort((a: any, b: any) => {
-                  // Sort by createdAt in descending order (newest first)
-                  const dateA = a.createdAt?.toDate?.() || new Date(0);
-                  const dateB = b.createdAt?.toDate?.() || new Date(0);
-                  return dateB - dateA;
+                  const getTimestamp = (item: any) => {
+                    if (!item.createdAt) return 0;
+                    if (item.createdAt.toDate) return item.createdAt.toDate().getTime();
+                    if (item.createdAt.seconds) return item.createdAt.seconds * 1000;
+                    if (item.createdAt instanceof Date) return item.createdAt.getTime();
+                    return new Date(item.createdAt).getTime();
+                  };
+                  
+                  return getTimestamp(b) - getTimestamp(a);
                 })
                 .map((contribution: any, index: number) => {
-                  // Convert Firestore timestamp to Date object if needed
-                  const date = contribution.createdAt?.toDate 
-                    ? contribution.createdAt.toDate() 
-                    : new Date(contribution.createdAt);
-                  
                   return (
                     <div key={contribution.id || index}>
                       <div className="flex justify-between items-center py-2">
@@ -342,9 +347,7 @@ const SavingsGoalDetail = () => {
                           )}
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          {isNaN(date.getTime()) 
-                            ? "Date unknown" 
-                            : format(date, "MMM d, yyyy 'at' h:mm a")}
+                          {formatTimestamp(contribution.createdAt)}
                         </div>
                       </div>
                       {index < savingsGoal.contributions.length - 1 && <Separator />}

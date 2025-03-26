@@ -6,18 +6,14 @@ import { getStorage } from 'firebase/storage';
 
 // Your web app's Firebase configuration
 // For development, we'll use some default values if environment variables are not set
-
-
-
-
-  const firebaseConfig = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY ||  "AIzaSyD-jZE3bsJO0ahNgRda4pPzC_heaQpDh5s",
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "projectpanner.firebaseapp.com",
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "projectpanner",
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "projectpanner.firebasestorage.app",
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "428222471810",
-    appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:428222471810:web:1e81cf4057d4ed9d501e9b",
-  };
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY ||  "AIzaSyD-jZE3bsJO0ahNgRda4pPzC_heaQpDh5s",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "projectpanner.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "projectpanner",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "projectpanner.appspot.com", // Fixed the storage bucket URL format
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "428222471810",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:428222471810:web:1e81cf4057d4ed9d501e9b",
+};
 
 // Debug Firebase config
 console.log("Firebase config being used:", 

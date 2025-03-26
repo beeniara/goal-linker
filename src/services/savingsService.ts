@@ -1,5 +1,6 @@
+
 import { v4 as uuidv4 } from 'uuid';
-import { doc, setDoc, serverTimestamp, collection, getDocs, query, where, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, collection, getDocs, query, where, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 import { SavingsGoalFormValues } from '@/schemas/savingsGoalSchema';
 
@@ -137,12 +138,15 @@ export async function addContribution(
     const goalData = goalDoc.data();
     
     const contributionId = uuidv4();
+    // Use a regular Date timestamp for the contribution object that will go into an array
+    // instead of serverTimestamp() which can't be used in arrays
+    const now = new Date();
     const contribution = {
       id: contributionId,
       userId,
       amount,
       note,
-      createdAt: serverTimestamp()
+      createdAt: Timestamp.fromDate(now)
     };
     
     const newCurrentAmount = (goalData.current || 0) + amount;
