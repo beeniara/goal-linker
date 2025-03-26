@@ -144,17 +144,29 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
         console.error('Error response:', response);
         
         // If there's a permission error but we have a savingsId, still navigate to savings
-        // This handles the case where we couldn't add the user to the goal but they should still see it
         if (response.code === 'permission-denied' && response.savingsId) {
           toast({
-            title: 'Permission Error',
-            description: response.message || 'You don\'t have permission to join this goal directly. The owner will need to add you manually.',
+            title: 'Permission Issue',
+            description: response.message || 'You don\'t have permission to join this goal directly. The owner will need to add you manually in their settings.',
             variant: 'destructive',
           });
           
           navigate('/savings', { 
             state: { 
               errorMessage: response.message,
+              savingsId: response.savingsId
+            }
+          });
+        } else if (response.code === 'goal-update-error' && response.savingsId) {
+          toast({
+            title: 'Invitation Processed',
+            description: response.message || 'The owner will need to manually add you to this savings goal.',
+            variant: 'default',
+          });
+          
+          navigate('/savings', { 
+            state: { 
+              warningMessage: response.message,
               savingsId: response.savingsId
             }
           });
@@ -184,7 +196,7 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
           (error.message && error.message.includes('Missing or insufficient permissions'))) {
         toast({
           title: 'Permission Error',
-          description: 'You don\'t have permission to respond to this invitation. The goal owner may need to add you manually.',
+          description: 'You don\'t have permission to respond to this invitation. The goal owner will need to manually add you in their settings.',
           variant: 'destructive',
         });
       } else {

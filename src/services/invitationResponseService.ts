@@ -57,10 +57,6 @@ export async function respondToInvitation(
     if (response === 'accepted' && invitationData.savingsId) {
       const savingsId = invitationData.savingsId;
       
-      // Even if we can't update the members, we'll still return success with the savingsId
-      // This allows the user to navigate to the savings goal page
-      console.log(`Returning savingsId ${savingsId} for navigation purposes, regardless of update success`);
-      
       try {
         console.log(`Attempting to add user ${userId} to savings goal ${savingsId}`);
         
@@ -92,7 +88,6 @@ export async function respondToInvitation(
             savingsId: savingsId
           };
         } catch (updateError) {
-          // Even if the update fails, we still want to return the savingsId
           console.error("Error updating savings goal members:", updateError);
           
           // Send a more specific message depending on the error
@@ -100,7 +95,7 @@ export async function respondToInvitation(
               (updateError.message && updateError.message.includes('Missing or insufficient permissions'))) {
             return {
               success: false,
-              message: "Permission issue adding you to this savings goal. You can still view it if the owner has shared it with you.",
+              message: "You don't have permission to join this goal. The owner will need to manually add you in their savings goal settings.",
               code: "permission-denied",
               savingsId: savingsId, // Return savingsId for navigation
               invitationId: invitationId
@@ -109,7 +104,7 @@ export async function respondToInvitation(
           
           return {
             success: false,
-            message: "Unable to add you to the savings goal automatically. You can still view it if the owner has shared it with you.",
+            message: "Unable to automatically add you to the savings goal. The owner will need to manually add you in their settings.",
             code: "goal-update-error",
             savingsId: savingsId, // Return savingsId for navigation
             invitationId: invitationId
@@ -121,7 +116,7 @@ export async function respondToInvitation(
         // Still return the savingsId even if everything fails
         return {
           success: false,
-          message: "There was an issue updating the savings goal, but you can still try to view it.",
+          message: "There was an issue updating the savings goal. The owner will need to manually add you through their settings.",
           savingsId: savingsId, // Return savingsId for navigation
           invitationId: invitationId
         };
