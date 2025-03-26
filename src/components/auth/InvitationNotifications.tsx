@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Check, X, AlertCircle, Bell, Inbox } from 'lucide-react';
+import { Check, X, AlertCircle, Inbox } from 'lucide-react';
 import { getUserInvitations, respondToInvitation, SavingsInvitation } from '@/services/savingsInvitationService';
 import { useToast } from '@/hooks/use-toast';
 import { AnimatePresence, motion } from 'framer-motion';
