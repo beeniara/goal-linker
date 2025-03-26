@@ -1,3 +1,4 @@
+
 # Firebase Setup Guide for TaskFlow
 
 This guide will help you set up the Firebase services needed for the TaskFlow app.
@@ -85,7 +86,7 @@ service cloud.firestore {
       // The invitee can update the status when accepting/declining
       allow update: if request.auth != null && 
                    resource.data.inviteeEmail == request.auth.token.email &&
-                   request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'inviteeId']);
+                   request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'inviteeId', 'updatedAt']);
     }
     
     // Reminders collection rules
