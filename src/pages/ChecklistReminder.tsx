@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Component, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { collection, getDocs, query, where, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, orderBy } from 'firebase/firestore';
 import { db, auth } from '@/firebase/config';
@@ -39,7 +39,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-type ReminderItem = {
+interface ReminderItem {
   id: string;
   title: string;
   description?: string;
@@ -50,9 +50,29 @@ type ReminderItem = {
   parentId?: string;
   isMain: boolean;
   createdAt: Date;
-};
+}
 
-const ChecklistReminder = () => {
+// Error Boundary Component
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('Error caught by boundary:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <h1>Something went wrong. Please refresh the page.</h1>;
+    }
+    return this.props.children;
+  }
+}
+
+const ChecklistReminder: React.FC = () => {
   const { currentUser } = useAuth();
   const { toast } = useToast();
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
@@ -63,10 +83,10 @@ const ChecklistReminder = () => {
   const [newReminderDescription, setNewReminderDescription] = useState('');
   const [newReminderDueDate, setNewReminderDueDate] = useState('');
   const [newReminderDueTime, setNewReminderDueTime] = useState('');
-  const [newReminderUrgency, setNewReminderUrgency] = useState('medium');
+  const [newReminderUrgency, setNewReminderUrgency] = useState<'low' | 'medium' | 'high'>('medium');
   const [newReminderParentId, setNewReminderParentId] = useState<string | undefined>(undefined);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState('due');
+  const [activeTab, setActiveTab] = useState<'due' | 'today' | 'overdue' | 'completed' | 'all'>('due');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -97,7 +117,7 @@ const ChecklistReminder = () => {
       const q = query(
         remindersRef, 
         where('userId', '==', currentUser.uid),
-        orderBy('createdAt', 'desc') // Fall back to creation date if due date is not available
+        orderBy('createdAt', 'desc')
       );
       
       const querySnapshot = await getDocs(q);
@@ -165,18 +185,13 @@ const ChecklistReminder = () => {
         description: newReminderDescription.trim() || null,
         dueDate: newReminderDueDate ? new Date(newReminderDueDate) : null,
         dueTime: newReminderDueTime || null,
-        urgency: newReminderUrgency as 'low' | 'medium' | 'high',
+        urgency: newReminderUrgency,
         completed: false,
         parentId: newReminderParentId || null,
         isMain: !newReminderParentId,
         userId: currentUser.uid,
         createdAt: serverTimestamp(),
       };
-      
-      console.log("New reminder data:", newReminder);
-      
-      // Test if db is accessible
-      console.log("Firestore database instance:", db);
       
       const docRef = await addDoc(collection(db, 'reminders'), newReminder);
       console.log("Reminder added with ID:", docRef.id);
@@ -186,7 +201,6 @@ const ChecklistReminder = () => {
         description: 'Reminder added successfully',
       });
       
-      // Reset form
       setNewReminderTitle('');
       setNewReminderDescription('');
       setNewReminderDueDate('');
@@ -195,19 +209,13 @@ const ChecklistReminder = () => {
       setNewReminderParentId(undefined);
       setDialogOpen(false);
       
-      // Refresh reminders
       fetchReminders();
     } catch (error) {
       console.error('Error adding reminder:', error);
-      console.error('Error details:', JSON.stringify(error, null, 2));
-      
       let errorMessage = 'Failed to add reminder. Please try again.';
-      
       if (error instanceof Error) {
         errorMessage += ` (${error.message})`;
-        console.error('Stack trace:', error.stack);
       }
-      
       setError(errorMessage);
       toast({
         title: 'Error',
@@ -231,7 +239,7 @@ const ChecklistReminder = () => {
         description: newReminderDescription.trim() || null,
         dueDate: newReminderDueDate ? new Date(newReminderDueDate) : null,
         dueTime: newReminderDueTime || null,
-        urgency: newReminderUrgency as 'low' | 'medium' | 'high',
+        urgency: newReminderUrgency,
         parentId: newReminderParentId || null,
         isMain: !newReminderParentId,
       };
@@ -243,7 +251,6 @@ const ChecklistReminder = () => {
         description: 'Reminder updated successfully',
       });
       
-      // Reset form
       setEditingReminder(null);
       setNewReminderTitle('');
       setNewReminderDescription('');
@@ -253,7 +260,6 @@ const ChecklistReminder = () => {
       setNewReminderParentId(undefined);
       setDialogOpen(false);
       
-      // Refresh reminders
       fetchReminders();
     } catch (error) {
       console.error('Error updating reminder:', error);
@@ -271,17 +277,14 @@ const ChecklistReminder = () => {
     if (!currentUser) return;
     
     try {
-      // Check if this is a main reminder with sub-reminders
       const subReminders = reminders.filter(rem => rem.parentId === reminderId);
       
-      // If there are sub-reminders, delete them first
       if (subReminders.length > 0) {
         for (const subReminder of subReminders) {
           await deleteDoc(doc(db, 'reminders', subReminder.id));
         }
       }
       
-      // Delete the main reminder
       await deleteDoc(doc(db, 'reminders', reminderId));
       
       toast({
@@ -289,7 +292,6 @@ const ChecklistReminder = () => {
         description: 'Reminder deleted successfully',
       });
       
-      // Refresh reminders
       fetchReminders();
     } catch (error) {
       console.error('Error deleting reminder:', error);
@@ -308,7 +310,6 @@ const ChecklistReminder = () => {
       const reminderRef = doc(db, 'reminders', reminderId);
       await updateDoc(reminderRef, { completed });
       
-      // Update local state
       setReminders(prev => 
         prev.map(rem => 
           rem.id === reminderId ? { ...rem, completed } : rem
@@ -375,39 +376,41 @@ const ChecklistReminder = () => {
     return dueDateCopy < today;
   };
 
-  const filteredReminders = reminders.filter(reminder => {
-    if (searchQuery && !reminder.title.toLowerCase().includes(searchQuery.toLowerCase())) {
-      return false;
-    }
-    
-    switch (activeTab) {
-      case 'due':
-        return !reminder.completed;
-      case 'completed':
-        return reminder.completed;
-      case 'today':
-        return isDueToday(reminder.dueDate) && !reminder.completed;
-      case 'overdue':
-        return isOverdue(reminder.dueDate) && !reminder.completed;
-      case 'all':
-        return true;
-      default:
-        return true;
-    }
-  }).sort((a, b) => {
-    if (a.isMain && !b.isMain) return -1;
-    if (!a.isMain && b.isMain) return 1;
-    
-    const urgencyOrder = { high: 0, medium: 1, low: 2 };
-    const urgencyDiff = urgencyOrder[a.urgency] - urgencyOrder[b.urgency];
-    if (urgencyDiff !== 0) return urgencyDiff;
-    
-    if (a.dueDate && b.dueDate) return a.dueDate.getTime() - b.dueDate.getTime();
-    if (a.dueDate) return -1;
-    if (b.dueDate) return 1;
-    
-    return a.createdAt.getTime() - b.createdAt.getTime();
-  });
+  const filteredReminders = reminders
+    .filter(reminder => {
+      if (searchQuery && !reminder.title.toLowerCase().includes(searchQuery.toLowerCase())) {
+        return false;
+      }
+      
+      switch (activeTab) {
+        case 'due':
+          return !reminder.completed;
+        case 'completed':
+          return reminder.completed;
+        case 'today':
+          return isDueToday(reminder.dueDate) && !reminder.completed;
+        case 'overdue':
+          return isOverdue(reminder.dueDate) && !reminder.completed;
+        case 'all':
+          return true;
+        default:
+          return true;
+      }
+    })
+    .sort((a, b) => {
+      if (a.isMain && !b.isMain) return -1;
+      if (!a.isMain && b.isMain) return 1;
+      
+      const urgencyOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
+      const urgencyDiff = urgencyOrder[a.urgency] - urgencyOrder[b.urgency];
+      if (urgencyDiff !== 0) return urgencyDiff;
+      
+      if (a.dueDate && b.dueDate) return a.dueDate.getTime() - b.dueDate.getTime();
+      if (a.dueDate) return -1;
+      if (b.dueDate) return 1;
+      
+      return a.createdAt.getTime() - b.createdAt.getTime();
+    });
 
   const mainReminders = filteredReminders.filter(r => r.isMain);
 
@@ -481,7 +484,7 @@ const ChecklistReminder = () => {
         />
       </div>
       
-      <Tabs defaultValue="due" value={activeTab} onValueChange={setActiveTab}>
+      <Tabs defaultValue="due" value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)}>
         <TabsList className="mb-4">
           <TabsTrigger value="due">Due</TabsTrigger>
           <TabsTrigger value="today">Today</TabsTrigger>
@@ -773,7 +776,7 @@ const ChecklistReminder = () => {
               <Label htmlFor="urgency">Urgency</Label>
               <Select
                 value={newReminderUrgency}
-                onValueChange={setNewReminderUrgency}
+                onValueChange={(value) => setNewReminderUrgency(value as 'low' | 'medium' | 'high')}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select urgency" />
@@ -790,14 +793,14 @@ const ChecklistReminder = () => {
               <div className="space-y-2">
                 <Label htmlFor="parentId">Add as sub-task to (optional)</Label>
                 <Select
-                  value={newReminderParentId || ''}
-                  onValueChange={(value) => setNewReminderParentId(value || undefined)}
+                  value={newReminderParentId || 'none'}
+                  onValueChange={(value) => setNewReminderParentId(value === 'none' ? undefined : value)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select a main reminder" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None (Create as main reminder)</SelectItem>
+                    <SelectItem value="none">None (Create as main reminder)</SelectItem>
                     {mainReminders.map((reminder) => (
                       <SelectItem key={reminder.id} value={reminder.id}>
                         {reminder.title}
@@ -838,5 +841,11 @@ const ChecklistReminder = () => {
   );
 };
 
-export default ChecklistReminder;
+// Export with ErrorBoundary
+const ChecklistReminderWithErrorBoundary: React.FC = () => (
+  <ErrorBoundary>
+    <ChecklistReminder />
+  </ErrorBoundary>
+);
 
+export default ChecklistReminderWithErrorBoundary;

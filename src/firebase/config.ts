@@ -6,14 +6,18 @@ import { getStorage } from 'firebase/storage';
 
 // Your web app's Firebase configuration
 // For development, we'll use some default values if environment variables are not set
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyAuTnlXRVgY3IW6SskcWQmHox9xhWy3KBM",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "lovable-app-demo.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "lovable-app-demo",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "lovable-app-demo.appspot.com",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "661589312135",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:661589312135:web:0a2cf4b01137cf1f9bc5b5"
-};
+
+
+
+
+  const firebaseConfig = {
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY ||  "AIzaSyD-jZE3bsJO0ahNgRda4pPzC_heaQpDh5s",
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "projectpanner.firebaseapp.com",
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "projectpanner",
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "projectpanner.firebasestorage.app",
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "428222471810",
+    appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:428222471810:web:1e81cf4057d4ed9d501e9b",
+  };
 
 // Debug Firebase config
 console.log("Firebase config being used:", 
