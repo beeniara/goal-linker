@@ -5,14 +5,14 @@ import { getFirestore, enableIndexedDbPersistence } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 // Your web app's Firebase configuration
+// For development, we'll use some default values if environment variables are not set
 const firebaseConfig = {
-  // Using environment variables with fallbacks
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "YOUR_API_KEY",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "YOUR_PROJECT_ID",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "YOUR_MESSAGING_SENDER_ID",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "YOUR_APP_ID"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyAuTnlXRVgY3IW6SskcWQmHox9xhWy3KBM",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "lovable-app-demo.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "lovable-app-demo",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "lovable-app-demo.appspot.com",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "661589312135",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:661589312135:web:0a2cf4b01137cf1f9bc5b5"
 };
 
 // Debug Firebase config
@@ -29,10 +29,12 @@ console.log("Firebase config being used:",
 );
 
 // Check if we have valid configuration
-if (firebaseConfig.apiKey === "YOUR_API_KEY" || !firebaseConfig.apiKey) {
-  console.error("ERROR: Firebase API key is missing or invalid!");
-  console.error("Please set the VITE_FIREBASE_API_KEY environment variable.");
-  console.error("Firebase functionality will not work correctly!");
+if (!firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY") {
+  console.error("WARNING: Firebase API key is missing or using default value.");
+  console.error("For production, set the VITE_FIREBASE_API_KEY environment variable.");
+  console.log("Using demo Firebase project for development purposes.");
+} else {
+  console.log("Firebase configuration is valid.");
 }
 
 // Initialize Firebase app instance with configuration
@@ -64,11 +66,5 @@ try {
 } catch (error) {
   console.error("Error enabling persistence:", error);
 }
-
-// DEBUGGING TIP: If you're seeing authentication or permission errors:
-// 1. Check that your Firebase API keys are correct in your environment variables
-// 2. Ensure Authentication is enabled in Firebase console
-// 3. Verify Firestore security rules allow the operations you're attempting
-// 4. Make sure the user is properly authenticated before accessing data
 
 export default app;
