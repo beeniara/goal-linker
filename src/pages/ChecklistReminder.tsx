@@ -1,416 +1,61 @@
-import React, { useState, useEffect, Component, ReactNode } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
-import { collection, getDocs, query, where, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, orderBy } from 'firebase/firestore';
-import { db, auth } from '@/firebase/config';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { 
-  Card, 
-  CardContent, 
-  CardHeader,
-  CardTitle,
-  CardDescription
-} from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-  Calendar,
-  Clock,
-  Flag,
-  Plus,
-  Check,
-  Trash,
-  ArrowUp,
-  ArrowDown,
-  Edit,
-  Search,
-  Bell,
-  ChevronDown,
-  ChevronRight
-} from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { Plus } from 'lucide-react';
 import { ReminderNotificationDialog } from '@/components/reminders/ReminderNotificationDialog';
-
-interface ReminderItem {
-  id: string;
-  title: string;
-  description?: string;
-  dueDate?: Date;
-  dueTime?: string;
-  urgency: 'low' | 'medium' | 'high';
-  completed: boolean;
-  parentId?: string;
-  isMain: boolean;
-  createdAt: Date;
-}
-
-// Error Boundary Component
-class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
-  state = { hasError: false };
-
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('Error caught by boundary:', error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return <h1>Something went wrong. Please refresh the page.</h1>;
-    }
-    return this.props.children;
-  }
-}
+import { ReminderFilter } from '@/components/reminders/ReminderFilter';
+import { ReminderList } from '@/components/reminders/ReminderList';
+import { ReminderForm } from '@/components/reminders/ReminderForm';
+import { ErrorBoundary } from '@/components/reminders/ErrorBoundary';
+import { useReminders } from '@/components/reminders/useReminders';
+import { ReminderItem } from '@/types/reminder';
 
 const ChecklistReminder: React.FC = () => {
   const { currentUser } = useAuth();
-  const { toast } = useToast();
-  const [reminders, setReminders] = useState<ReminderItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  
+  // State for UI
   const [dialogOpen, setDialogOpen] = useState(false);
   const [notificationDialogOpen, setNotificationDialogOpen] = useState(false);
   const [selectedReminder, setSelectedReminder] = useState<ReminderItem | null>(null);
   const [editingReminder, setEditingReminder] = useState<ReminderItem | null>(null);
-  const [newReminderTitle, setNewReminderTitle] = useState('');
-  const [newReminderDescription, setNewReminderDescription] = useState('');
-  const [newReminderDueDate, setNewReminderDueDate] = useState('');
-  const [newReminderDueTime, setNewReminderDueTime] = useState('');
-  const [newReminderUrgency, setNewReminderUrgency] = useState<'low' | 'medium' | 'high'>('medium');
-  const [newReminderParentId, setNewReminderParentId] = useState<string | undefined>(undefined);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'due' | 'today' | 'overdue' | 'completed' | 'all' | 'urgency'>('due');
   const [selectedUrgency, setSelectedUrgency] = useState<'low' | 'medium' | 'high' | 'all'>('all');
-  const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [expandedReminders, setExpandedReminders] = useState<Record<string, boolean>>({});
   const [displayPreferences, setDisplayPreferences] = useState({
     showSubtasks: true,
     showDescription: true,
     showDueDate: true,
     showUrgency: true,
   });
+  
+  // Form state
+  const [newReminderTitle, setNewReminderTitle] = useState('');
+  const [newReminderDescription, setNewReminderDescription] = useState('');
+  const [newReminderDueDate, setNewReminderDueDate] = useState('');
+  const [newReminderDueTime, setNewReminderDueTime] = useState('');
+  const [newReminderUrgency, setNewReminderUrgency] = useState<'low' | 'medium' | 'high'>('medium');
+  const [newReminderParentId, setNewReminderParentId] = useState<string | undefined>(undefined);
 
-  useEffect(() => {
-    if (currentUser) {
-      fetchReminders();
-    } else {
-      console.log("No authenticated user found. Please log in first.");
-      setLoading(false);
-      setError("You need to be logged in to view reminders.");
-    }
-  }, [currentUser]);
+  // Use the custom hook for reminders functionality
+  const {
+    reminders,
+    loading,
+    error,
+    isSubmitting,
+    expandedReminders,
+    addReminder,
+    updateReminder,
+    deleteReminder,
+    toggleComplete,
+    toggleExpandReminder,
+    isDueToday,
+    isOverdue,
+    isDueWithinHours,
+    getUrgencyColor,
+  } = useReminders(currentUser?.uid);
 
-  const fetchReminders = async () => {
-    if (!currentUser) {
-      console.error("Cannot fetch reminders: No authenticated user");
-      setError("Authentication required. Please log in.");
-      setLoading(false);
-      return;
-    }
-    
-    try {
-      console.log("Fetching reminders for user:", currentUser.uid);
-      setLoading(true);
-      setError(null);
-      
-      const remindersRef = collection(db, 'reminders');
-      const q = query(
-        remindersRef, 
-        where('userId', '==', currentUser.uid),
-        orderBy('createdAt', 'desc')
-      );
-      
-      const querySnapshot = await getDocs(q);
-      console.log(`Found ${querySnapshot.size} reminders`);
-      
-      const remindersList: ReminderItem[] = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        remindersList.push({
-          id: doc.id,
-          title: data.title,
-          description: data.description,
-          dueDate: data.dueDate ? data.dueDate.toDate() : undefined,
-          dueTime: data.dueTime,
-          urgency: data.urgency,
-          completed: data.completed || false,
-          parentId: data.parentId,
-          isMain: data.isMain || false,
-          createdAt: data.createdAt ? data.createdAt.toDate() : new Date(),
-        });
-      });
-      
-      setReminders(remindersList);
-    } catch (error) {
-      console.error('Error fetching reminders:', error);
-      setError('Failed to load reminders. Please try again.');
-      toast({
-        title: 'Error',
-        description: 'Failed to load reminders. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleAddReminder = async () => {
-    if (!currentUser) {
-      console.error("Cannot add reminder: No authenticated user");
-      setError("Authentication required. Please log in.");
-      toast({
-        title: 'Authentication Error',
-        description: 'You must be logged in to add reminders.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    if (!newReminderTitle.trim()) {
-      toast({
-        title: 'Validation Error',
-        description: 'Reminder title is required.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    try {
-      setIsSubmitting(true);
-      console.log("Adding new reminder for user:", currentUser.uid);
-      setError(null);
-      
-      const newReminder = {
-        title: newReminderTitle.trim(),
-        description: newReminderDescription.trim() || null,
-        dueDate: newReminderDueDate ? new Date(newReminderDueDate) : null,
-        dueTime: newReminderDueTime || null,
-        urgency: newReminderUrgency,
-        completed: false,
-        parentId: newReminderParentId || null,
-        isMain: !newReminderParentId,
-        userId: currentUser.uid,
-        createdAt: serverTimestamp(),
-      };
-      
-      const docRef = await addDoc(collection(db, 'reminders'), newReminder);
-      console.log("Reminder added with ID:", docRef.id);
-      
-      toast({
-        title: 'Success',
-        description: 'Reminder added successfully',
-      });
-      
-      setNewReminderTitle('');
-      setNewReminderDescription('');
-      setNewReminderDueDate('');
-      setNewReminderDueTime('');
-      setNewReminderUrgency('medium');
-      setNewReminderParentId(undefined);
-      setDialogOpen(false);
-      
-      fetchReminders();
-    } catch (error) {
-      console.error('Error adding reminder:', error);
-      let errorMessage = 'Failed to add reminder. Please try again.';
-      if (error instanceof Error) {
-        errorMessage += ` (${error.message})`;
-      }
-      setError(errorMessage);
-      toast({
-        title: 'Error',
-        description: errorMessage,
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleUpdateReminder = async () => {
-    if (!currentUser || !editingReminder || !newReminderTitle.trim()) return;
-    
-    try {
-      setIsSubmitting(true);
-      const reminderRef = doc(db, 'reminders', editingReminder.id);
-      
-      const updates = {
-        title: newReminderTitle.trim(),
-        description: newReminderDescription.trim() || null,
-        dueDate: newReminderDueDate ? new Date(newReminderDueDate) : null,
-        dueTime: newReminderDueTime || null,
-        urgency: newReminderUrgency,
-        parentId: newReminderParentId || null,
-        isMain: !newReminderParentId,
-      };
-      
-      await updateDoc(reminderRef, updates);
-      
-      toast({
-        title: 'Success',
-        description: 'Reminder updated successfully',
-      });
-      
-      setEditingReminder(null);
-      setNewReminderTitle('');
-      setNewReminderDescription('');
-      setNewReminderDueDate('');
-      setNewReminderDueTime('');
-      setNewReminderUrgency('medium');
-      setNewReminderParentId(undefined);
-      setDialogOpen(false);
-      
-      fetchReminders();
-    } catch (error) {
-      console.error('Error updating reminder:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to update reminder. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleDeleteReminder = async (reminderId: string) => {
-    if (!currentUser) return;
-    
-    try {
-      const subReminders = reminders.filter(rem => rem.parentId === reminderId);
-      
-      if (subReminders.length > 0) {
-        for (const subReminder of subReminders) {
-          await deleteDoc(doc(db, 'reminders', subReminder.id));
-        }
-      }
-      
-      await deleteDoc(doc(db, 'reminders', reminderId));
-      
-      toast({
-        title: 'Success',
-        description: 'Reminder deleted successfully',
-      });
-      
-      fetchReminders();
-    } catch (error) {
-      console.error('Error deleting reminder:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to delete reminder. Please try again.',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleToggleComplete = async (reminderId: string, completed: boolean) => {
-    if (!currentUser) return;
-    
-    try {
-      const reminderRef = doc(db, 'reminders', reminderId);
-      await updateDoc(reminderRef, { completed });
-      
-      setReminders(prev => 
-        prev.map(rem => 
-          rem.id === reminderId ? { ...rem, completed } : rem
-        )
-      );
-      
-      toast({
-        title: completed ? 'Reminder completed' : 'Reminder reopened',
-        description: `The reminder has been marked as ${completed ? 'completed' : 'incomplete'}`,
-      });
-    } catch (error) {
-      console.error('Error updating reminder status:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to update reminder status. Please try again.',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleEditReminder = (reminder: ReminderItem) => {
-    setEditingReminder(reminder);
-    setNewReminderTitle(reminder.title);
-    setNewReminderDescription(reminder.description || '');
-    setNewReminderDueDate(reminder.dueDate ? reminder.dueDate.toISOString().split('T')[0] : '');
-    setNewReminderDueTime(reminder.dueTime || '');
-    setNewReminderUrgency(reminder.urgency);
-    setNewReminderParentId(reminder.parentId);
-    setDialogOpen(true);
-  };
-
-  const handleNotificationSettings = (reminder: ReminderItem) => {
-    setSelectedReminder(reminder);
-    setNotificationDialogOpen(true);
-  };
-
-  const toggleExpandReminder = (reminderId: string) => {
-    setExpandedReminders(prev => ({
-      ...prev,
-      [reminderId]: !prev[reminderId]
-    }));
-  };
-
-  const getUrgencyColor = (urgency: string) => {
-    switch (urgency) {
-      case 'low':
-        return 'bg-green-100 text-green-800';
-      case 'medium':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'high':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const isDueToday = (dueDate?: Date) => {
-    if (!dueDate) return false;
-    
-    const today = new Date();
-    return (
-      dueDate.getDate() === today.getDate() &&
-      dueDate.getMonth() === today.getMonth() &&
-      dueDate.getFullYear() === today.getFullYear()
-    );
-  };
-
-  const isOverdue = (dueDate?: Date) => {
-    if (!dueDate) return false;
-    
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const dueDateCopy = new Date(dueDate);
-    dueDateCopy.setHours(0, 0, 0, 0);
-    
-    return dueDateCopy < today;
-  };
-
-  const isDueWithinHours = (dueDate?: Date, hours: number = 24) => {
-    if (!dueDate) return false;
-    
-    const now = new Date();
-    const future = new Date(now.getTime() + (hours * 60 * 60 * 1000));
-    
-    return dueDate <= future && dueDate >= now;
-  };
-
+  // Filter and sort the reminders
   const filteredReminders = reminders
     .filter(reminder => {
       if (searchQuery && !reminder.title.toLowerCase().includes(searchQuery.toLowerCase())) {
@@ -497,6 +142,111 @@ const ChecklistReminder: React.FC = () => {
     }
   };
 
+  const handleEditReminder = (reminder: ReminderItem) => {
+    setEditingReminder(reminder);
+    setNewReminderTitle(reminder.title);
+    setNewReminderDescription(reminder.description || '');
+    setNewReminderDueDate(reminder.dueDate ? reminder.dueDate.toISOString().split('T')[0] : '');
+    setNewReminderDueTime(reminder.dueTime || '');
+    setNewReminderUrgency(reminder.urgency);
+    setNewReminderParentId(reminder.parentId);
+    setDialogOpen(true);
+  };
+
+  const handleNotificationSettings = (reminder: ReminderItem) => {
+    setSelectedReminder(reminder);
+    setNotificationDialogOpen(true);
+  };
+
+  const handleAddReminder = () => {
+    setEditingReminder(null);
+    setNewReminderTitle('');
+    setNewReminderDescription('');
+    setNewReminderDueDate('');
+    setNewReminderDueTime('');
+    setNewReminderUrgency('medium');
+    setNewReminderParentId(undefined);
+    setDialogOpen(true);
+  };
+
+  const handleAddSubReminder = (parentId: string) => {
+    setEditingReminder(null);
+    setNewReminderTitle('');
+    setNewReminderDescription('');
+    setNewReminderDueDate('');
+    setNewReminderDueTime('');
+    setNewReminderUrgency('medium');
+    setNewReminderParentId(parentId);
+    setDialogOpen(true);
+  };
+
+  const handleSubmitForm = async () => {
+    if (editingReminder) {
+      const success = await updateReminder(
+        editingReminder.id,
+        newReminderTitle,
+        newReminderDescription,
+        newReminderDueDate,
+        newReminderDueTime,
+        newReminderUrgency,
+        newReminderParentId
+      );
+      
+      if (success) {
+        setDialogOpen(false);
+        resetForm();
+      }
+    } else {
+      const success = await addReminder(
+        newReminderTitle,
+        newReminderDescription,
+        newReminderDueDate,
+        newReminderDueTime,
+        newReminderUrgency,
+        newReminderParentId
+      );
+      
+      if (success) {
+        setDialogOpen(false);
+        resetForm();
+      }
+    }
+  };
+
+  const resetForm = () => {
+    setEditingReminder(null);
+    setNewReminderTitle('');
+    setNewReminderDescription('');
+    setNewReminderDueDate('');
+    setNewReminderDueTime('');
+    setNewReminderUrgency('medium');
+    setNewReminderParentId(undefined);
+  };
+
+  const handleCustomizeDisplay = () => {
+    const dialog = window.confirm(
+      "Do you want to customize what information is shown for each reminder?\n\n" +
+      "- Show subtasks\n" +
+      "- Show descriptions\n" +
+      "- Show due dates\n" +
+      "- Show urgency"
+    );
+    
+    if (dialog) {
+      const showSubtasks = window.confirm("Show subtasks?");
+      const showDescription = window.confirm("Show descriptions?");
+      const showDueDate = window.confirm("Show due dates?");
+      const showUrgency = window.confirm("Show urgency labels?");
+      
+      setDisplayPreferences({
+        showSubtasks,
+        showDescription,
+        showDueDate,
+        showUrgency
+      });
+    }
+  };
+
   if (!currentUser) {
     return (
       <div className="container py-6">
@@ -523,46 +273,10 @@ const ChecklistReminder: React.FC = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Checklist Reminders</h1>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => {
-            const dialog = window.confirm(
-              "Do you want to customize what information is shown for each reminder?\n\n" +
-              "- Show subtasks\n" +
-              "- Show descriptions\n" +
-              "- Show due dates\n" +
-              "- Show urgency"
-            );
-            
-            if (dialog) {
-              const showSubtasks = window.confirm("Show subtasks?");
-              const showDescription = window.confirm("Show descriptions?");
-              const showDueDate = window.confirm("Show due dates?");
-              const showUrgency = window.confirm("Show urgency labels?");
-              
-              setDisplayPreferences({
-                showSubtasks,
-                showDescription,
-                showDueDate,
-                showUrgency
-              });
-              
-              toast({
-                title: 'Display Preferences Updated',
-                description: 'Your reminder display preferences have been updated.',
-              });
-            }
-          }}>
+          <Button variant="outline" onClick={handleCustomizeDisplay}>
             Customize Display
           </Button>
-          <Button onClick={() => {
-            setEditingReminder(null);
-            setNewReminderTitle('');
-            setNewReminderDescription('');
-            setNewReminderDueDate('');
-            setNewReminderDueTime('');
-            setNewReminderUrgency('medium');
-            setNewReminderParentId(undefined);
-            setDialogOpen(true);
-          }}>
+          <Button onClick={handleAddReminder}>
             <Plus className="mr-2 h-4 w-4" />
             New Reminder
           </Button>
@@ -588,463 +302,64 @@ const ChecklistReminder: React.FC = () => {
         </div>
       )}
       
-      <div className="relative">
-        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input
-          type="text"
-          placeholder="Search reminders..."
-          className="pl-8"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+      {/* Filter Component */}
+      <ReminderFilter
+        activeTab={activeTab}
+        selectedUrgency={selectedUrgency}
+        searchQuery={searchQuery}
+        onTabChange={handleTabChange}
+        onUrgencyChange={setSelectedUrgency}
+        onSearchChange={setSearchQuery}
+      />
+      
+      {/* Tabs Content */}
+      <div className="space-y-4">
+        <ReminderList
+          loading={loading}
+          activeTab={activeTab}
+          selectedUrgency={selectedUrgency}
+          searchQuery={searchQuery}
+          mainReminders={mainReminders}
+          filteredReminders={filteredReminders}
+          expandedReminders={expandedReminders}
+          displayPreferences={displayPreferences}
+          onToggleExpand={toggleExpandReminder}
+          onToggleComplete={toggleComplete}
+          onEdit={handleEditReminder}
+          onDelete={deleteReminder}
+          onNotificationSettings={handleNotificationSettings}
+          onAddReminder={handleAddReminder}
+          onAddSubReminder={handleAddSubReminder}
+          getUrgencyColor={getUrgencyColor}
+          isOverdue={isOverdue}
+          isDueToday={isDueToday}
+          isDueWithinHours={isDueWithinHours}
         />
       </div>
       
-      <Tabs defaultValue="due" value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="mb-4">
-          <TabsTrigger value="due">Due Soon</TabsTrigger>
-          <TabsTrigger value="today">Today</TabsTrigger>
-          <TabsTrigger value="overdue">Overdue</TabsTrigger>
-          <TabsTrigger value="urgency">Urgency</TabsTrigger>
-          <TabsTrigger value="completed">Completed</TabsTrigger>
-          <TabsTrigger value="all">All</TabsTrigger>
-        </TabsList>
-        
-        {activeTab === 'urgency' && (
-          <div className="mb-4 flex space-x-2">
-            <Badge 
-              className={`cursor-pointer ${selectedUrgency === 'all' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}
-              onClick={() => setSelectedUrgency('all')}
-            >
-              All
-            </Badge>
-            <Badge 
-              className={`cursor-pointer ${selectedUrgency === 'high' ? 'bg-red-500 text-white' : 'bg-red-100 text-red-800'}`}
-              onClick={() => setSelectedUrgency('high')}
-            >
-              High
-            </Badge>
-            <Badge 
-              className={`cursor-pointer ${selectedUrgency === 'medium' ? 'bg-yellow-500 text-white' : 'bg-yellow-100 text-yellow-800'}`}
-              onClick={() => setSelectedUrgency('medium')}
-            >
-              Medium
-            </Badge>
-            <Badge 
-              className={`cursor-pointer ${selectedUrgency === 'low' ? 'bg-green-500 text-white' : 'bg-green-100 text-green-800'}`}
-              onClick={() => setSelectedUrgency('low')}
-            >
-              Low
-            </Badge>
-          </div>
-        )}
-        
-        <TabsContent value={activeTab} className="space-y-4">
-          {loading ? (
-            <div className="text-center py-8">
-              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" role="status">
-                <span className="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Loading...</span>
-              </div>
-              <p className="mt-2">Loading reminders...</p>
-            </div>
-          ) : mainReminders.length === 0 ? (
-            <div className="text-center py-8">
-              <h3 className="text-lg font-medium mb-2">
-                {activeTab === 'completed' ? 'No completed reminders found' :
-                 activeTab === 'overdue' ? 'No overdue reminders found' :
-                 activeTab === 'today' ? 'No reminders due today' :
-                 activeTab === 'due' ? 'No reminders due in the next 24 hours' :
-                 activeTab === 'urgency' ? `No ${selectedUrgency !== 'all' ? selectedUrgency + ' urgency' : ''} reminders found` :
-                 'No reminders found'}
-              </h3>
-              <p className="text-muted-foreground mb-4">
-                {searchQuery ? 'No reminders match your search' : 
-                 activeTab === 'completed' ? 'Complete tasks to see them here' :
-                 'Get started by creating your first reminder'}
-              </p>
-              <Button onClick={() => {
-                setEditingReminder(null);
-                setNewReminderTitle('');
-                setNewReminderDescription('');
-                setNewReminderDueDate('');
-                setNewReminderDueTime('');
-                setNewReminderUrgency('medium');
-                setNewReminderParentId(undefined);
-                setDialogOpen(true);
-              }}>
-                <Plus className="mr-2 h-4 w-4" />
-                Create Reminder
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {mainReminders.map((mainReminder) => {
-                const subReminders = filteredReminders.filter(r => r.parentId === mainReminder.id);
-                const isExpanded = expandedReminders[mainReminder.id] !== false;
-                
-                // In "Due" tab we only show title by default, and reveal details on click
-                const showCompactView = activeTab === 'due' && !isExpanded;
-                
-                return (
-                  <Card key={mainReminder.id} className={`
-                    ${mainReminder.completed ? 'bg-muted/20' : ''}
-                    ${isOverdue(mainReminder.dueDate) && !mainReminder.completed ? 'border-red-300' : ''}
-                    ${isDueToday(mainReminder.dueDate) && !mainReminder.completed ? 'border-yellow-300' : ''}
-                  `}>
-                    <CardHeader className={`${showCompactView ? 'pb-3' : 'pb-2'}`}>
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-3">
-                          {activeTab === 'due' ? (
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="p-0 h-6 w-6"
-                              onClick={() => toggleExpandReminder(mainReminder.id)}
-                            >
-                              {isExpanded ? 
-                                <ChevronDown className="h-5 w-5" /> : 
-                                <ChevronRight className="h-5 w-5" />
-                              }
-                            </Button>
-                          ) : (
-                            <Checkbox 
-                              checked={mainReminder.completed}
-                              onCheckedChange={(checked) => 
-                                handleToggleComplete(mainReminder.id, checked === true)
-                              }
-                              className="mt-1"
-                            />
-                          )}
-                          <div>
-                            <CardTitle className={`${mainReminder.completed ? 'line-through text-muted-foreground' : ''}`}>
-                              {mainReminder.title}
-                            </CardTitle>
-                            {displayPreferences.showDescription && !showCompactView && mainReminder.description && (
-                              <CardDescription className={`${mainReminder.completed ? 'line-through' : ''}`}>
-                                {mainReminder.description}
-                              </CardDescription>
-                            )}
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-2">
-                          {displayPreferences.showUrgency && !mainReminder.completed && !showCompactView && (
-                            <Badge className={getUrgencyColor(mainReminder.urgency)}>
-                              {mainReminder.urgency.charAt(0).toUpperCase() + mainReminder.urgency.slice(1)}
-                            </Badge>
-                          )}
-                          
-                          {!showCompactView && (
-                            <div className="flex">
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                onClick={() => handleNotificationSettings(mainReminder)}
-                                title="Set up reminders"
-                              >
-                                <Bell className="h-4 w-4" />
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                onClick={() => handleEditReminder(mainReminder)}
-                                title="Edit reminder"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                onClick={() => handleDeleteReminder(mainReminder.id)}
-                                title="Delete reminder"
-                              >
-                                <Trash className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {displayPreferences.showDueDate && (mainReminder.dueDate || mainReminder.dueTime) && !showCompactView && (
-                        <div className={`flex items-center text-sm mt-1 ${
-                          isOverdue(mainReminder.dueDate) && !mainReminder.completed 
-                            ? 'text-red-500' 
-                            : isDueToday(mainReminder.dueDate) && !mainReminder.completed
-                              ? 'text-yellow-600'
-                              : 'text-muted-foreground'
-                        }`}>
-                          {mainReminder.dueDate && (
-                            <>
-                              <Calendar className="h-3 w-3 mr-1" />
-                              {mainReminder.dueDate.toLocaleDateString()}
-                            </>
-                          )}
-                          {mainReminder.dueTime && (
-                            <>
-                              <Clock className="h-3 w-3 mx-1" />
-                              {mainReminder.dueTime}
-                            </>
-                          )}
-                          {isOverdue(mainReminder.dueDate) && !mainReminder.completed && (
-                            <span className="ml-1 font-medium">(Overdue)</span>
-                          )}
-                          {isDueToday(mainReminder.dueDate) && !mainReminder.completed && !isOverdue(mainReminder.dueDate) && (
-                            <span className="ml-1 font-medium">(Today)</span>
-                          )}
-                          {isDueWithinHours(mainReminder.dueDate, 24) && !isDueToday(mainReminder.dueDate) && !mainReminder.completed && (
-                            <span className="ml-1 font-medium">(Due Soon)</span>
-                          )}
-                        </div>
-                      )}
-                    </CardHeader>
-                    
-                    {displayPreferences.showSubtasks && subReminders.length > 0 && !showCompactView && (
-                      <CardContent>
-                        <div className="border-l-2 border-muted pl-4 space-y-2 ml-6">
-                          {subReminders.map((subReminder) => (
-                            <div 
-                              key={subReminder.id}
-                              className={`flex items-start justify-between p-2 rounded-md ${
-                                subReminder.completed ? 'bg-muted/10' : 'hover:bg-muted/10'
-                              }`}
-                            >
-                              <div className="flex items-start gap-3">
-                                <Checkbox 
-                                  checked={subReminder.completed}
-                                  onCheckedChange={(checked) => 
-                                    handleToggleComplete(subReminder.id, checked === true)
-                                  }
-                                  className="mt-1"
-                                />
-                                <div>
-                                  <div className={`font-medium ${subReminder.completed ? 'line-through text-muted-foreground' : ''}`}>
-                                    {subReminder.title}
-                                  </div>
-                                  {displayPreferences.showDescription && subReminder.description && (
-                                    <p className={`text-sm ${subReminder.completed ? 'line-through text-muted-foreground' : 'text-muted-foreground'}`}>
-                                      {subReminder.description}
-                                    </p>
-                                  )}
-                                  {displayPreferences.showDueDate && (subReminder.dueDate || subReminder.dueTime) && (
-                                    <div className={`flex items-center text-xs mt-1 ${
-                                      isOverdue(subReminder.dueDate) && !subReminder.completed 
-                                        ? 'text-red-500' 
-                                        : isDueToday(subReminder.dueDate) && !subReminder.completed
-                                          ? 'text-yellow-600'
-                                          : 'text-muted-foreground'
-                                    }`}>
-                                      {subReminder.dueDate && (
-                                        <>
-                                          <Calendar className="h-3 w-3 mr-1" />
-                                          {subReminder.dueDate.toLocaleDateString()}
-                                        </>
-                                      )}
-                                      {subReminder.dueTime && (
-                                        <>
-                                          <Clock className="h-3 w-3 mx-1" />
-                                          {subReminder.dueTime}
-                                        </>
-                                      )}
-                                      {isOverdue(subReminder.dueDate) && !subReminder.completed && (
-                                        <span className="ml-1 font-medium">(Overdue)</span>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              
-                              <div className="flex items-center gap-1">
-                                {displayPreferences.showUrgency && !subReminder.completed && (
-                                  <Badge className={`text-xs ${getUrgencyColor(subReminder.urgency)}`}>
-                                    {subReminder.urgency.charAt(0).toUpperCase() + subReminder.urgency.slice(1)}
-                                  </Badge>
-                                )}
-                                
-                                <div className="flex">
-                                  <Button variant="ghost" size="icon" onClick={() => handleEditReminder(subReminder)}>
-                                    <Edit className="h-3 w-3" />
-                                  </Button>
-                                  <Button variant="ghost" size="icon" onClick={() => handleDeleteReminder(subReminder.id)}>
-                                    <Trash className="h-3 w-3" />
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </CardContent>
-                    )}
-                    
-                    <CardContent className={subReminders.length > 0 && !showCompactView ? 'pt-0' : ''}>
-                      {!showCompactView && (
-                        <Button 
-                          variant="ghost" 
-                          className="text-sm" 
-                          onClick={() => {
-                            setEditingReminder(null);
-                            setNewReminderTitle('');
-                            setNewReminderDescription('');
-                            setNewReminderDueDate('');
-                            setNewReminderDueTime('');
-                            setNewReminderUrgency('medium');
-                            setNewReminderParentId(mainReminder.id);
-                            setDialogOpen(true);
-                          }}
-                        >
-                          <Plus className="h-3 w-3 mr-1" />
-                          Add Sub-task
-                        </Button>
-                      )}
-                      {showCompactView && (
-                        <div className="flex justify-between items-center">
-                          <Button 
-                            variant="ghost" 
-                            className="text-sm" 
-                            onClick={() => toggleExpandReminder(mainReminder.id)}
-                          >
-                            <ChevronDown className="h-3 w-3 mr-1" />
-                            Show Details
-                          </Button>
-                          <Checkbox 
-                            checked={mainReminder.completed}
-                            onCheckedChange={(checked) => 
-                              handleToggleComplete(mainReminder.id, checked === true)
-                            }
-                          />
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
-
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {editingReminder ? 'Edit Reminder' : newReminderParentId ? 'Add Sub-task' : 'New Reminder'}
-            </DialogTitle>
-            <DialogDescription>
-              {editingReminder 
-                ? 'Update the details of your reminder' 
-                : newReminderParentId
-                  ? 'Add a sub-task to your main reminder'
-                  : 'Create a new reminder to stay on track'}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="title">Title</Label>
-              <Input
-                id="title"
-                value={newReminderTitle}
-                onChange={(e) => setNewReminderTitle(e.target.value)}
-                placeholder="Enter reminder title"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="description">Description (optional)</Label>
-              <Input
-                id="description"
-                value={newReminderDescription}
-                onChange={(e) => setNewReminderDescription(e.target.value)}
-                placeholder="Add more details"
-              />
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="dueDate">Due Date</Label>
-                <Input
-                  id="dueDate"
-                  type="date"
-                  value={newReminderDueDate}
-                  onChange={(e) => setNewReminderDueDate(e.target.value)}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="dueTime">Due Time</Label>
-                <Input
-                  id="dueTime"
-                  type="time"
-                  value={newReminderDueTime}
-                  onChange={(e) => setNewReminderDueTime(e.target.value)}
-                />
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="urgency">Urgency</Label>
-              <Select
-                value={newReminderUrgency}
-                onValueChange={(value) => setNewReminderUrgency(value as 'low' | 'medium' | 'high')}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select urgency" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="low">Low</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            {!editingReminder && !newReminderParentId && mainReminders.length > 0 && (
-              <div className="space-y-2">
-                <Label htmlFor="parentId">Add as sub-task to (optional)</Label>
-                <Select
-                  value={newReminderParentId || 'none'}
-                  onValueChange={(value) => setNewReminderParentId(value === 'none' ? undefined : value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a main reminder" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None (Create as main reminder)</SelectItem>
-                    {mainReminders.map((reminder) => (
-                      <SelectItem key={reminder.id} value={reminder.id}>
-                        {reminder.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-          </div>
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={editingReminder ? handleUpdateReminder : handleAddReminder}
-              disabled={!newReminderTitle.trim() || isSubmitting}
-            >
-              {isSubmitting ? (
-                <>
-                  <span className="mr-2">
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  </span>
-                  Processing...
-                </>
-              ) : (
-                editingReminder ? 'Update' : 'Add'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Reminder Form */}
+      <ReminderForm
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        editingReminder={editingReminder}
+        newReminderTitle={newReminderTitle}
+        newReminderDescription={newReminderDescription}
+        newReminderDueDate={newReminderDueDate}
+        newReminderDueTime={newReminderDueTime}
+        newReminderUrgency={newReminderUrgency}
+        newReminderParentId={newReminderParentId}
+        mainReminders={mainReminders}
+        isSubmitting={isSubmitting}
+        onTitleChange={setNewReminderTitle}
+        onDescriptionChange={setNewReminderDescription}
+        onDueDateChange={setNewReminderDueDate}
+        onDueTimeChange={setNewReminderDueTime}
+        onUrgencyChange={setNewReminderUrgency}
+        onParentIdChange={setNewReminderParentId}
+        onSubmit={handleSubmitForm}
+      />
       
+      {/* Notification Dialog */}
       {selectedReminder && (
         <ReminderNotificationDialog
           open={notificationDialogOpen}
@@ -1053,8 +368,8 @@ const ChecklistReminder: React.FC = () => {
           reminderTitle={selectedReminder.title}
           userId={currentUser.uid}
           userEmail={currentUser.email || ''}
-          existingNotificationId={undefined} // In a real app, this would be fetched from the database
-          existingFrequency={undefined} // In a real app, this would be fetched from the database
+          existingNotificationId={undefined}
+          existingFrequency={undefined}
         />
       )}
     </div>
