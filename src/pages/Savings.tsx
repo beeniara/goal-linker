@@ -87,6 +87,11 @@ export default function Savings() {
         description: location.state.successMessage,
       });
       
+      // If there's a specific savings goal ID, set the active tab to shared
+      if (location.state.savingsId) {
+        setActiveTab("shared");
+      }
+      
       // Clear the location state to prevent showing the toast on refresh
       window.history.replaceState({}, document.title);
     }
@@ -103,6 +108,8 @@ export default function Savings() {
       setError(null);
       
       try {
+        console.log('Fetching savings data for user:', currentUser.uid);
+        
         // Fetch financial goals created by the user
         const financialQuery = query(
           collection(db, 'savings'),
@@ -115,25 +122,34 @@ export default function Savings() {
           ...doc.data()
         })) as SavingsGoal[];
         
+        console.log('Fetched personal goals:', financialData);
         setFinancialGoals(financialData);
         
         // Fetch shared goals (where user is a member but not the creator)
+        console.log('Fetching shared goals where user is a member:', currentUser.uid);
         const sharedQuery = query(
           collection(db, 'savings'),
           where('members', 'array-contains', currentUser.uid)
         );
         
         const sharedSnapshot = await getDocs(sharedQuery);
-        // Filter out goals that were created by the current user to avoid duplicates
         const sharedData = sharedSnapshot.docs
           .map(doc => ({
             id: doc.id,
             ...doc.data()
           })) as SavingsGoal[];
           
+        console.log('Fetched raw shared goals:', sharedData);
+        
         // Only include goals where the user is not the creator
         const filteredSharedGoals = sharedData.filter(goal => goal.userId !== currentUser.uid);
+        console.log('Filtered shared goals (excluding user as creator):', filteredSharedGoals);
         setSharedGoals(filteredSharedGoals);
+        
+        // Check if shared tab should be active (e.g., if we just accepted an invitation)
+        if (location.state?.savingsId && filteredSharedGoals.length > 0) {
+          setActiveTab("shared");
+        }
         
         // Fetch support strategies
         const supportQuery = query(
@@ -162,7 +178,7 @@ export default function Savings() {
     };
     
     fetchData();
-  }, [currentUser, toast]);
+  }, [currentUser, toast, location.state]);
   
   // Filter goals/strategies based on search query
   const filteredFinancialGoals = financialGoals.filter(goal => 

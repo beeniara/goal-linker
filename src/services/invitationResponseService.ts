@@ -1,3 +1,4 @@
+
 import { db } from '@/firebase/config';
 import { doc, updateDoc, getDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
 import { sendEmailNotification } from './notificationService';
@@ -25,7 +26,7 @@ export async function respondToInvitation(
     
     const invitation = { id: invitationDoc.id, ...invitationDoc.data() } as SavingsInvitation;
     console.log('Found invitation:', invitation);
-    console.log('Authenticated userId:', userId, 'inviteeEmail in invitation:', invitation.inviteeEmail); // Debug log
+    console.log('Authenticated userId:', userId, 'inviteeEmail in invitation:', invitation.inviteeEmail);
     
     // Update invitation status
     try {
@@ -72,54 +73,33 @@ export async function respondToInvitation(
         
         const savingsData = savingsDoc.data();
         const members = savingsData.members || [];
-        console.log('Current members in savings group:', members); // Debug log
-        console.log('Adding userId to members:', userId); // Debug log
+        console.log('Current members in savings group:', members);
+        console.log('Adding userId to members:', userId);
         
+        // Check if user is already a member to prevent duplicates
         if (!members.includes(userId)) {
           // Use arrayUnion to safely add the user to the members array
           console.log('Updating savings group with new member:', userId);
+          await updateDoc(savingsRef, { 
+            members: arrayUnion(userId),
+            lastUpdatedAt: serverTimestamp()
+          });
+          console.log('Successfully added user to savings group');
+          
+          // Notify the inviter that the invitation was accepted
           try {
-            await updateDoc(savingsRef, { 
-              members: arrayUnion(userId),
-              lastUpdatedAt: serverTimestamp()
-            });
-            console.log('Successfully added user to savings group');
-            
-            // Notify the inviter that the invitation was accepted
-            try {
-              // Since inviterId might be a UID, we need the inviter's email
-              // Ideally, fetch the inviter's email from the users collection
-              // For now, we'll assume inviterId is an email or handle this in notificationService
-              await sendEmailNotification(
-                invitation.inviterId, // This should be an email, not a UID
-                'Savings Group Invitation Accepted',
-                `Your invitation to join "${invitation.savingsTitle}" has been accepted.`
-              );
-              console.log('Sent acceptance notification email');
-            } catch (emailError) {
-              console.error('Error sending acceptance notification:', emailError);
-              // Continue even if email fails
-              return { 
-                success: true, 
-                warning: 'Invitation accepted and user added to group, but email notification failed.'
-              };
-            }
-          } catch (memberUpdateError: any) {
-            console.error('Error adding member to savings group:', memberUpdateError);
-            
-            // Return partial success - the invitation was updated but adding to group failed
-            if (memberUpdateError.code === 'permission-denied' || 
-                (memberUpdateError.message && memberUpdateError.message.includes('Missing or insufficient permissions'))) {
-              return { 
-                success: true,  // Invitation was updated successfully
-                warning: 'Your response was recorded, but you could not be added to the savings group due to permission settings.',
-                code: 'permission-denied-savings'
-              };
-            }
-            
+            await sendEmailNotification(
+              invitation.inviterId, // This should be an email or UID
+              'Savings Group Invitation Accepted',
+              `Your invitation to join "${invitation.savingsTitle}" has been accepted.`
+            );
+            console.log('Sent acceptance notification email');
+          } catch (emailError) {
+            console.error('Error sending acceptance notification:', emailError);
+            // Continue even if email fails, as the invitation was created successfully
             return { 
-              success: true,  // Invitation was updated successfully
-              warning: `Your response was recorded, but you could not be added to the savings group: ${memberUpdateError.message}`,
+              success: true, 
+              warning: 'Invitation accepted and user added to group, but email notification failed.'
             };
           }
         } else {
@@ -127,6 +107,7 @@ export async function respondToInvitation(
         }
       } catch (savingsError: any) {
         console.error('Error accessing savings group:', savingsError);
+        console.error('Error details:', JSON.stringify(savingsError, null, 2));
         
         // Return partial success - the invitation was updated but adding to group failed
         if (savingsError.code === 'permission-denied' || 
@@ -149,6 +130,7 @@ export async function respondToInvitation(
     return { success: true };
   } catch (error: any) {
     console.error('Error responding to invitation:', error);
+    console.error('Error details:', JSON.stringify(error, null, 2));
     
     // Check for Firebase permission errors at the top level
     if (error.code === 'permission-denied' || 
