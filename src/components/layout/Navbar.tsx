@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,6 +14,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useAuth } from '@/contexts/AuthContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Menu, X, User, LogOut, Settings, ChevronDown, BarChart, Briefcase, CheckSquare, Flag, Bell, PiggyBank } from 'lucide-react';
+import { getUserInvitations } from '@/services/savingsInvitationService';
 
 const Navbar = () => {
   const { currentUser, logout } = useAuth();
@@ -21,6 +22,7 @@ const Navbar = () => {
   const location = useLocation();
   const isMobile = useIsMobile();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [notificationCount, setNotificationCount] = useState(0);
 
   const handleLogout = async () => {
     try {
@@ -31,13 +33,44 @@ const Navbar = () => {
     }
   };
 
+  // Fetch notification count on load and when user changes
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      if (currentUser?.email) {
+        try {
+          const invitations = await getUserInvitations(currentUser.email);
+          setNotificationCount(invitations.length);
+        } catch (error) {
+          console.error('Error fetching notifications:', error);
+        }
+      }
+    };
+
+    if (currentUser) {
+      fetchNotifications();
+      
+      // Set up interval to check for new notifications every minute
+      const intervalId = setInterval(fetchNotifications, 60000);
+      
+      // Clean up interval on unmount
+      return () => clearInterval(intervalId);
+    } else {
+      setNotificationCount(0);
+    }
+  }, [currentUser]);
+
   const navLinks = [
     { path: '/dashboard', label: 'Dashboard', icon: <BarChart className="h-4 w-4 mr-2" /> },
     { path: '/projects', label: 'Projects', icon: <Briefcase className="h-4 w-4 mr-2" /> },
     { path: '/tasks', label: 'Tasks', icon: <CheckSquare className="h-4 w-4 mr-2" /> },
     { path: '/goals', label: 'Goals', icon: <Flag className="h-4 w-4 mr-2" /> },
     { path: '/savings', label: 'Savings', icon: <PiggyBank className="h-4 w-4 mr-2" /> },
-    { path: '/reminders', label: 'Reminders', icon: <Bell className="h-4 w-4 mr-2" /> },
+    { 
+      path: '/reminders', 
+      label: 'Reminders',
+      icon: <Bell className="h-4 w-4 mr-2" />,
+      badge: notificationCount
+    },
   ];
 
   const closeMenu = () => setIsMenuOpen(false);
@@ -59,10 +92,16 @@ const Navbar = () => {
                     variant={location.pathname === link.path ? "default" : "ghost"}
                     size="sm"
                     asChild
+                    className="relative"
                   >
                     <Link to={link.path} className="flex items-center">
                       {link.icon}
                       {link.label}
+                      {link.badge && link.badge > 0 && (
+                        <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                          {link.badge > 99 ? '99+' : link.badge}
+                        </span>
+                      )}
                     </Link>
                   </Button>
                 ))}
@@ -82,11 +121,33 @@ const Navbar = () => {
               </>
             ) : (
               <>
+                {/* Notification bell for desktop */}
+                {!isMobile && (
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="relative"
+                    onClick={() => navigate('/reminders')}
+                  >
+                    <Bell className="h-5 w-5" />
+                    {notificationCount > 0 && (
+                      <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                        {notificationCount > 99 ? '99+' : notificationCount}
+                      </span>
+                    )}
+                  </Button>
+                )}
+                
                 {isMobile ? (
                   <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
                     <SheetTrigger asChild>
-                      <Button variant="ghost" size="icon" aria-label="Menu">
+                      <Button variant="ghost" size="icon" aria-label="Menu" className="relative">
                         <Menu className="h-5 w-5" />
+                        {notificationCount > 0 && (
+                          <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                            {notificationCount > 99 ? '99+' : notificationCount}
+                          </span>
+                        )}
                       </Button>
                     </SheetTrigger>
                     <SheetContent side="left" className="sm:max-w-xs">
@@ -104,10 +165,16 @@ const Navbar = () => {
                               variant={location.pathname === link.path ? "default" : "ghost"}
                               onClick={closeMenu}
                               asChild
+                              className="relative"
                             >
                               <Link to={link.path} className="flex items-center justify-start">
                                 {link.icon}
                                 {link.label}
+                                {link.badge && link.badge > 0 && (
+                                  <span className="absolute -top-2 right-0 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                                    {link.badge > 99 ? '99+' : link.badge}
+                                  </span>
+                                )}
                               </Link>
                             </Button>
                           ))}

@@ -6,15 +6,31 @@ import { Toaster } from '@/components/ui/toaster';
 import { AlertMessageDisplay } from '@/components/alerts/AlertMessageDisplay';
 import { useAuth } from '@/contexts/AuthContext';
 import { InvitationNotifications } from '@/components/auth/InvitationNotifications';
+import { Badge } from '@/components/ui/badge';
 import { Bell } from 'lucide-react';
+import { getUserInvitations } from '@/services/savingsInvitationService';
 
 const Login = () => {
   const { currentUser, userData } = useAuth();
   const [showInvitations, setShowInvitations] = useState(false);
+  const [invitationsCount, setInvitationsCount] = useState(0);
 
   useEffect(() => {
+    const checkInvitations = async () => {
+      if (currentUser && currentUser.email) {
+        try {
+          const invitations = await getUserInvitations(currentUser.email);
+          setInvitationsCount(invitations.length);
+          setShowInvitations(invitations.length > 0);
+        } catch (error) {
+          console.error("Error checking invitations:", error);
+          setShowInvitations(false);
+        }
+      }
+    };
+
     if (currentUser && userData) {
-      setShowInvitations(true);
+      checkInvitations();
     }
   }, [currentUser, userData]);
 
@@ -37,9 +53,16 @@ const Login = () => {
           
           {showInvitations && currentUser && userData && (
             <div className="mb-4">
-              <div className="bg-muted p-3 rounded-t-md flex items-center gap-2">
-                <Bell className="h-5 w-5 text-primary" />
-                <h3 className="font-medium">Pending Invitations</h3>
+              <div className="bg-muted p-3 rounded-t-md flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Bell className="h-5 w-5 text-primary" />
+                  <h3 className="font-medium">Pending Invitations</h3>
+                </div>
+                {invitationsCount > 0 && (
+                  <Badge variant="default" className="ml-2">
+                    {invitationsCount}
+                  </Badge>
+                )}
               </div>
               <div className="border border-t-0 rounded-b-md p-3">
                 <InvitationNotifications 

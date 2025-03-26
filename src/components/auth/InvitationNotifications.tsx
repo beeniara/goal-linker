@@ -52,19 +52,23 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
       setRespondingTo(invitationId);
       setError(null);
       
-      await respondToInvitation(invitationId, userId, accept);
+      const response = await respondToInvitation(invitationId, userId, accept);
       
-      toast({
-        title: accept ? 'Invitation Accepted' : 'Invitation Declined',
-        description: accept 
-          ? 'You have been added to the savings group' 
-          : 'You have declined the invitation',
-      });
-      
-      // Remove the invitation from the list
-      setInvitations(prevInvitations => 
-        prevInvitations.filter(inv => inv.id !== invitationId)
-      );
+      if (response.success) {
+        toast({
+          title: accept ? 'Invitation Accepted' : 'Invitation Declined',
+          description: accept 
+            ? 'You have been added to the savings group' 
+            : 'You have declined the invitation',
+        });
+        
+        // Remove the invitation from the list
+        setInvitations(prevInvitations => 
+          prevInvitations.filter(inv => inv.id !== invitationId)
+        );
+      } else {
+        throw new Error(response.message || 'Failed to process the invitation');
+      }
     } catch (error: any) {
       console.error('Error responding to invitation:', error);
       setError(`Failed to process your response: ${error.message || 'Unknown error'}. Please try again or refresh the page.`);

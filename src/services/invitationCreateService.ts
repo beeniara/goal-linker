@@ -62,12 +62,12 @@ export async function inviteUserToSavings(
       };
     }
     
-    // Check if invitation already exists
+    // Check if invitation already exists for this specific savings goal
     try {
       const invitationExists = await checkExistingInvitation(savingsId, inviteeEmail);
       if (invitationExists) {
-        console.log('Invitation already exists');
-        return { success: false, message: 'Invitation already sent to this user' };
+        console.log('Invitation already exists for this specific savings goal');
+        return { success: false, message: 'Invitation already sent to this user for this savings goal' };
       }
     } catch (queryError: any) {
       console.error('Error checking existing invitations:', queryError);
