@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 import { useAuth } from '@/contexts/AuthContext';
@@ -34,6 +34,7 @@ import {
   DollarSign,
   Heart,
   PiggyBank,
+  AlertCircle,
 } from 'lucide-react';
 
 // Type definition for a savings goal
@@ -50,6 +51,7 @@ interface SavingsGoal {
   createdAt: any;
   updatedAt: any;
   completed: boolean;
+  members?: string[];
 }
 
 // Type definition for a support strategy
@@ -66,14 +68,29 @@ interface SupportStrategy {
 
 export default function Savings() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { currentUser } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("financial");
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [financialGoals, setFinancialGoals] = useState<SavingsGoal[]>([]);
+  const [sharedGoals, setSharedGoals] = useState<SavingsGoal[]>([]);
   const [supportStrategies, setSupportStrategies] = useState<SupportStrategy[]>([]);
   const [error, setError] = useState<string | null>(null);
+  
+  useEffect(() => {
+    // Check if there's a success message in the location state (e.g., after accepting an invitation)
+    if (location.state?.successMessage) {
+      toast({
+        title: "Success",
+        description: location.state.successMessage,
+      });
+      
+      // Clear the location state to prevent showing the toast on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location, toast]);
   
   useEffect(() => {
     const fetchData = async () => {
@@ -86,7 +103,7 @@ export default function Savings() {
       setError(null);
       
       try {
-        // Fetch financial goals
+        // Fetch financial goals created by the user
         const financialQuery = query(
           collection(db, 'savings'),
           where('userId', '==', currentUser.uid)
@@ -99,6 +116,24 @@ export default function Savings() {
         })) as SavingsGoal[];
         
         setFinancialGoals(financialData);
+        
+        // Fetch shared goals (where user is a member but not the creator)
+        const sharedQuery = query(
+          collection(db, 'savings'),
+          where('members', 'array-contains', currentUser.uid)
+        );
+        
+        const sharedSnapshot = await getDocs(sharedQuery);
+        // Filter out goals that were created by the current user to avoid duplicates
+        const sharedData = sharedSnapshot.docs
+          .map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          })) as SavingsGoal[];
+          
+        // Only include goals where the user is not the creator
+        const filteredSharedGoals = sharedData.filter(goal => goal.userId !== currentUser.uid);
+        setSharedGoals(filteredSharedGoals);
         
         // Fetch support strategies
         const supportQuery = query(
@@ -131,6 +166,11 @@ export default function Savings() {
   
   // Filter goals/strategies based on search query
   const filteredFinancialGoals = financialGoals.filter(goal => 
+    goal.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    goal.description.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  
+  const filteredSharedGoals = sharedGoals.filter(goal => 
     goal.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     goal.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -182,6 +222,10 @@ export default function Savings() {
               <DollarSign className="mr-2 h-4 w-4" />
               Financial Goals
             </TabsTrigger>
+            <TabsTrigger value="shared">
+              <Users className="mr-2 h-4 w-4" />
+              Shared Goals
+            </TabsTrigger>
             <TabsTrigger value="support">
               <Heart className="mr-2 h-4 w-4" />
               Support Strategies
@@ -215,6 +259,25 @@ export default function Savings() {
           )}
         </TabsContent>
         
+        <TabsContent value="shared">
+          {isLoading ? (
+            <SavingsGoalsSkeletons />
+          ) : filteredSharedGoals.length > 0 ? (
+            <div className="space-y-4">
+              <div className="bg-muted/30 p-4 rounded-md border border-muted flex items-start">
+                <AlertCircle className="h-5 w-5 mr-2 text-muted-foreground mt-0.5" />
+                <p className="text-sm text-muted-foreground">
+                  These are savings goals that have been shared with you by other users.
+                  You can view and contribute to them, but only the creator can modify the goal details.
+                </p>
+              </div>
+              <SavingsGoalsList goals={filteredSharedGoals} />
+            </div>
+          ) : (
+            <EmptySharedState />
+          )}
+        </TabsContent>
+        
         <TabsContent value="support">
           {isLoading ? (
             <SavingsGoalsSkeletons />
@@ -240,6 +303,18 @@ function EmptyFinancialState() {
       <Button asChild>
         <Link to="/financial-strategies">Create Your First Savings Goal</Link>
       </Button>
+    </div>
+  );
+}
+
+function EmptySharedState() {
+  return (
+    <div className="text-center py-16 border rounded-lg bg-muted/20">
+      <Users className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+      <h3 className="text-xl font-medium mb-2">No shared savings goals</h3>
+      <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+        When someone invites you to a shared savings goal, it will appear here.
+      </p>
     </div>
   );
 }
@@ -322,7 +397,11 @@ function SavingsGoalsList({ goals }: { goals: SavingsGoal[] }) {
                 </span>
               </div>
               <div className="flex items-center text-muted-foreground">
-                <User className="h-3.5 w-3.5 mr-1" />
+                {goal.method === 'group' ? (
+                  <Users className="h-3.5 w-3.5 mr-1" />
+                ) : (
+                  <User className="h-3.5 w-3.5 mr-1" />
+                )}
                 <span className="capitalize">{goal.method}</span>
               </div>
             </div>
