@@ -4,8 +4,7 @@ import { Button } from '@/components/ui/button';
 import { UserPlus } from 'lucide-react';
 import { GroupInviteDialog } from '@/components/savings/GroupInviteDialog';
 import { useToast } from '@/hooks/use-toast';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
+import { AlertMessageDisplay } from '@/components/alerts/AlertMessageDisplay';
 
 interface InviteButtonProps {
   savingsId: string;
@@ -62,11 +61,7 @@ export const InviteButton: React.FC<InviteButtonProps> = ({
   return (
     <>
       {error && (
-        <Alert variant="destructive" className="mb-4">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
+        <AlertMessageDisplay type="error" message={error} />
       )}
     
       <Button 

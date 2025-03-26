@@ -108,11 +108,11 @@ export const GroupInviteDialog: React.FC<GroupInviteDialogProps> = ({
           setWarningMessage(result.warning);
         }
       } else {
-        // Handle specific error cases
+        // Handle specific error cases based on result.code
         if (result.message?.includes('already sent')) {
           setError(`An invitation has already been sent to ${values.email}`);
-        } else if (result.message?.includes('permissions')) {
-          setError(`Permission denied: ${result.message}. Please check your Firebase security rules.`);
+        } else if (result.code === 'permission-denied') {
+          setError('Firebase permission denied. Please verify your security rules allow creating and querying invitations.');
         } else {
           setError(result.message || 'Failed to send invitation. Please try again.');
         }
@@ -148,7 +148,7 @@ export const GroupInviteDialog: React.FC<GroupInviteDialogProps> = ({
         </DialogHeader>
         
         {error && (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="mb-4">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Error</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
@@ -156,16 +156,16 @@ export const GroupInviteDialog: React.FC<GroupInviteDialogProps> = ({
         )}
         
         {warningMessage && (
-          <Alert variant="warning">
-            <AlertTriangle className="h-4 w-4" />
+          <Alert variant="warning" className="mb-4 border-yellow-500 bg-yellow-50 text-yellow-800">
+            <AlertTriangle className="h-4 w-4 text-yellow-600" />
             <AlertTitle>Warning</AlertTitle>
             <AlertDescription>{warningMessage}</AlertDescription>
           </Alert>
         )}
         
         {infoMessage && (
-          <Alert variant="info">
-            <Info className="h-4 w-4" />
+          <Alert variant="info" className="mb-4 border-blue-500 bg-blue-50 text-blue-800">
+            <Info className="h-4 w-4 text-blue-600" />
             <AlertTitle>Info</AlertTitle>
             <AlertDescription>{infoMessage}</AlertDescription>
           </Alert>

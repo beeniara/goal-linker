@@ -17,6 +17,32 @@ export interface SavingsInvitation {
   createdAt: any;
 }
 
+/**
+ * Checks if an invitation already exists for a specific savings goal and email
+ */
+export async function checkExistingInvitation(savingsId: string, inviteeEmail: string): Promise<boolean> {
+  try {
+    console.log(`Checking if invitation exists for ${inviteeEmail} to savings group ${savingsId}`);
+    
+    const invitationsRef = collection(db, 'savingsInvitations');
+    const q = query(
+      invitationsRef, 
+      where('savingsId', '==', savingsId),
+      where('inviteeEmail', '==', inviteeEmail),
+      where('status', '==', 'pending')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    return !querySnapshot.empty;
+  } catch (error: any) {
+    console.error('Error checking existing invitations:', error);
+    throw new Error(`Failed to check existing invitations: ${error.message}`);
+  }
+}
+
+/**
+ * Invites a user to join a savings goal
+ */
 export async function inviteUserToSavings(
   savingsId: string,
   savingsTitle: string,
@@ -50,17 +76,9 @@ export async function inviteUserToSavings(
     }
     
     // Check if invitation already exists
-    const invitationsRef = collection(db, 'savingsInvitations');
-    const q = query(
-      invitationsRef, 
-      where('savingsId', '==', savingsId),
-      where('inviteeEmail', '==', inviteeEmail),
-      where('status', '==', 'pending')
-    );
-    
     try {
-      const querySnapshot = await getDocs(q);
-      if (!querySnapshot.empty) {
+      const invitationExists = await checkExistingInvitation(savingsId, inviteeEmail);
+      if (invitationExists) {
         console.log('Invitation already exists');
         return { success: false, message: 'Invitation already sent to this user' };
       }
@@ -68,7 +86,7 @@ export async function inviteUserToSavings(
       console.error('Error checking existing invitations:', queryError);
       return { 
         success: false, 
-        message: 'Error checking existing invitations. ' + (queryError.message || '')
+        message: `Error checking existing invitations: ${queryError.message || 'Firebase permission error'}. Please verify your Firebase security rules.` 
       };
     }
     
@@ -113,11 +131,12 @@ export async function inviteUserToSavings(
     } catch (firebaseError: any) {
       console.error('Firebase error creating invitation:', firebaseError);
       let errorMessage = 'Failed to create invitation.';
+      let errorCode = firebaseError.code || 'unknown';
       
-      if (firebaseError.code === 'permission-denied') {
-        errorMessage = 'Permission denied. Please check your Firebase security rules. Make sure rules for the savingsInvitations collection allow authenticated users to create documents.';
-      } else if (firebaseError.message && firebaseError.message.includes('Missing or insufficient permissions')) {
-        errorMessage = 'Missing or insufficient permissions. Please update your Firestore security rules to allow creating invitations.';
+      if (firebaseError.code === 'permission-denied' || 
+          (firebaseError.message && firebaseError.message.includes('Missing or insufficient permissions'))) {
+        errorMessage = 'Permission denied. Please make sure your Firebase security rules allow creating and querying invitations.';
+        errorCode = 'permission-denied';
       } else if (firebaseError.code) {
         errorMessage = `Error (${firebaseError.code}): ${firebaseError.message || 'Unknown error'}`;
       }
@@ -125,8 +144,7 @@ export async function inviteUserToSavings(
       return { 
         success: false, 
         message: errorMessage, 
-        error: firebaseError,
-        code: firebaseError.code 
+        code: errorCode 
       };
     }
   } catch (error: any) {

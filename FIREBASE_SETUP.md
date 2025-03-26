@@ -6,7 +6,7 @@ This guide will help you set up the Firebase services needed for the TaskFlow ap
 
 1. Node.js and npm installed
 2. Firebase CLI installed (`npm install -g firebase-tools`)
-3. A Google account
+3. Google account
 
 ## Step 1: Create a Firebase Project
 
@@ -70,6 +70,9 @@ service cloud.firestore {
     match /savingsInvitations/{invitationId} {
       // Allow authenticated users to create invitations
       allow create: if request.auth != null;
+      
+      // Allow any authenticated user to query invitations (for checking existing ones)
+      allow list: if request.auth != null;
       
       // The creator of the invitation can read, update and delete
       allow read, update, delete: if request.auth != null && 
