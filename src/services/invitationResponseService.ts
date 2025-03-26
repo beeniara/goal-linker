@@ -1,5 +1,5 @@
 
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 import { InvitationResponse } from '@/types/invitation';
 
@@ -66,19 +66,30 @@ export async function respondToInvitation(
           const goalData = goalDoc.data();
           console.log(`Retrieved savings goal data:`, goalData);
           
-          // Initialize members array if it doesn't exist
-          const currentMembers = Array.isArray(goalData.members) ? goalData.members : [];
-          
-          // Add the user to the members array if not already present
-          if (!currentMembers.includes(userId)) {
-            console.log(`Adding user ${userId} to members array:`, currentMembers);
+          // Use arrayUnion to safely add the user to the members array without duplicates
+          try {
             await updateDoc(goalRef, {
-              members: [...currentMembers, userId],
+              members: arrayUnion(userId),
               updatedAt: serverTimestamp(),
             });
-            console.log(`Successfully added user ${userId} to savings goal members`);
-          } else {
-            console.log(`User ${userId} is already a member of this savings goal`);
+            console.log(`Successfully added user ${userId} to savings goal members using arrayUnion`);
+          } catch (arrayUnionError) {
+            console.error("Error using arrayUnion - falling back to manual array update:", arrayUnionError);
+            
+            // Fallback to manual array update if arrayUnion fails
+            const currentMembers = Array.isArray(goalData.members) ? goalData.members : [];
+            
+            // Add the user to the members array if not already present
+            if (!currentMembers.includes(userId)) {
+              console.log(`Adding user ${userId} to members array:`, currentMembers);
+              await updateDoc(goalRef, {
+                members: [...currentMembers, userId],
+                updatedAt: serverTimestamp(),
+              });
+              console.log(`Successfully added user ${userId} to savings goal members with manual array update`);
+            } else {
+              console.log(`User ${userId} is already a member of this savings goal`);
+            }
           }
           
           return {
@@ -96,10 +107,23 @@ export async function respondToInvitation(
         }
       } catch (updateError) {
         console.error("Error updating savings goal members:", updateError);
+        
+        // Check if this is a permission error
+        if (updateError.code === 'permission-denied' || 
+            (updateError.message && updateError.message.includes('Missing or insufficient permissions'))) {
+          return {
+            success: false,
+            message: "You don't have permission to join this savings goal. The owner needs to update their sharing settings.",
+            code: "permission-denied",
+            savingsId: invitationData.savingsId // Still return the savingsId for potential navigation
+          };
+        }
+        
         return {
           success: false,
           message: "Error adding you to the savings goal. Please ask the goal owner to add you manually.",
-          code: "goal-update-error"
+          code: "goal-update-error",
+          savingsId: invitationData.savingsId // Still return the savingsId for potential navigation
         };
       }
     }
@@ -107,7 +131,8 @@ export async function respondToInvitation(
     console.log(`Successfully responded to invitation ${invitationId}`);
     return {
       success: true,
-      invitationId: invitationId
+      invitationId: invitationId,
+      savingsId: invitationData.savingsId // Always return the savingsId if available
     };
   } catch (error: any) {
     console.error("Error responding to invitation:", error);

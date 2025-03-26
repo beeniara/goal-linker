@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useCallback } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -100,6 +101,7 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
       );
       
       const response = await respondToInvitation(invitationId, userId, accept ? 'accepted' : 'declined');
+      console.log('Response from service:', response);
       
       if (response.success) {
         toast({
@@ -111,12 +113,12 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
         });
         
         // If accepted, navigate to the savings page with the savingsId
-        if (accept && invitation) {
-          console.log("Navigating to savings page with ID:", response.savingsId || invitation.savingsId);
+        if (accept && response.savingsId) {
+          console.log("Navigating to savings page with ID:", response.savingsId);
           navigate('/savings', { 
             state: { 
               successMessage: `You have been added to the savings goal "${invitation.savingsTitle}"`,
-              savingsId: response.savingsId || invitation.savingsId
+              savingsId: response.savingsId
             }
           });
         }
@@ -127,15 +129,42 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
           description: response.warning,
           variant: 'default',
         });
+        
+        // If there's a savingsId, still navigate to it even with a warning
+        if (accept && response.savingsId) {
+          navigate('/savings', { 
+            state: { 
+              warningMessage: response.warning,
+              savingsId: response.savingsId
+            }
+          });
+        }
       } else {
         // Handle error, but don't put invitation back in the list
-        // This prevents the user from repeatedly trying to respond to an invitation they don't have permission for
         console.error('Error response:', response);
-        toast({
-          title: 'Error',
-          description: response.message || 'Failed to process your response. Please try again.',
-          variant: 'destructive',
-        });
+        
+        // If there's a permission error but we have a savingsId, still navigate to savings
+        // This handles the case where we couldn't add the user to the goal but they should still see it
+        if (response.code === 'permission-denied' && response.savingsId) {
+          toast({
+            title: 'Permission Error',
+            description: response.message || 'You don\'t have permission to join this goal directly. The owner will need to add you manually.',
+            variant: 'destructive',
+          });
+          
+          navigate('/savings', { 
+            state: { 
+              errorMessage: response.message,
+              savingsId: response.savingsId
+            }
+          });
+        } else {
+          toast({
+            title: 'Error',
+            description: response.message || 'Failed to process your response. Please try again.',
+            variant: 'destructive',
+          });
+        }
       }
     } catch (error: any) {
       console.error('Error responding to invitation:', error);
