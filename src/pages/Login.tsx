@@ -1,12 +1,23 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { LoginForm } from '@/components/auth/LoginForm';
 import { Link } from 'react-router-dom';
 import { Toaster } from '@/components/ui/toaster';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { InvitationNotifications } from '@/components/auth/InvitationNotifications';
 
 const Login = () => {
+  const { currentUser, userData } = useAuth();
+  const [showInvitations, setShowInvitations] = useState(false);
+
+  useEffect(() => {
+    if (currentUser && userData) {
+      setShowInvitations(true);
+    }
+  }, [currentUser, userData]);
+
   return (
     <div className="min-h-screen flex flex-col">
       <main className="flex-1 flex items-center justify-center p-6">
@@ -23,6 +34,13 @@ const Login = () => {
               Enter your credentials to access your account
             </p>
           </div>
+          
+          {showInvitations && currentUser && userData && (
+            <InvitationNotifications 
+              userEmail={currentUser.email || ''}
+              userId={currentUser.uid}
+            />
+          )}
           
           <Alert className="mb-4">
             <AlertCircle className="h-4 w-4" />

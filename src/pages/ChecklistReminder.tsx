@@ -35,9 +35,13 @@ import {
   ArrowUp,
   ArrowDown,
   Edit,
-  Search
+  Search,
+  Bell,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { ReminderNotificationDialog } from '@/components/reminders/ReminderNotificationDialog';
 
 interface ReminderItem {
   id: string;
@@ -78,6 +82,8 @@ const ChecklistReminder: React.FC = () => {
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [notificationDialogOpen, setNotificationDialogOpen] = useState(false);
+  const [selectedReminder, setSelectedReminder] = useState<ReminderItem | null>(null);
   const [editingReminder, setEditingReminder] = useState<ReminderItem | null>(null);
   const [newReminderTitle, setNewReminderTitle] = useState('');
   const [newReminderDescription, setNewReminderDescription] = useState('');
@@ -86,9 +92,17 @@ const ChecklistReminder: React.FC = () => {
   const [newReminderUrgency, setNewReminderUrgency] = useState<'low' | 'medium' | 'high'>('medium');
   const [newReminderParentId, setNewReminderParentId] = useState<string | undefined>(undefined);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'due' | 'today' | 'overdue' | 'completed' | 'all'>('due');
+  const [activeTab, setActiveTab] = useState<'due' | 'today' | 'overdue' | 'completed' | 'all' | 'urgency'>('due');
+  const [selectedUrgency, setSelectedUrgency] = useState<'low' | 'medium' | 'high' | 'all'>('all');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [expandedReminders, setExpandedReminders] = useState<Record<string, boolean>>({});
+  const [displayPreferences, setDisplayPreferences] = useState({
+    showSubtasks: true,
+    showDescription: true,
+    showDueDate: true,
+    showUrgency: true,
+  });
 
   useEffect(() => {
     if (currentUser) {
@@ -341,6 +355,18 @@ const ChecklistReminder: React.FC = () => {
     setDialogOpen(true);
   };
 
+  const handleNotificationSettings = (reminder: ReminderItem) => {
+    setSelectedReminder(reminder);
+    setNotificationDialogOpen(true);
+  };
+
+  const toggleExpandReminder = (reminderId: string) => {
+    setExpandedReminders(prev => ({
+      ...prev,
+      [reminderId]: !prev[reminderId]
+    }));
+  };
+
   const getUrgencyColor = (urgency: string) => {
     switch (urgency) {
       case 'low':
@@ -376,6 +402,15 @@ const ChecklistReminder: React.FC = () => {
     return dueDateCopy < today;
   };
 
+  const isDueWithinHours = (dueDate?: Date, hours: number = 24) => {
+    if (!dueDate) return false;
+    
+    const now = new Date();
+    const future = new Date(now.getTime() + (hours * 60 * 60 * 1000));
+    
+    return dueDate <= future && dueDate >= now;
+  };
+
   const filteredReminders = reminders
     .filter(reminder => {
       if (searchQuery && !reminder.title.toLowerCase().includes(searchQuery.toLowerCase())) {
@@ -384,13 +419,19 @@ const ChecklistReminder: React.FC = () => {
       
       switch (activeTab) {
         case 'due':
-          return !reminder.completed;
+          // Only show reminders due within 24 hours and not completed
+          return !reminder.completed && reminder.dueDate && isDueWithinHours(reminder.dueDate, 24);
         case 'completed':
           return reminder.completed;
         case 'today':
           return isDueToday(reminder.dueDate) && !reminder.completed;
         case 'overdue':
           return isOverdue(reminder.dueDate) && !reminder.completed;
+        case 'urgency':
+          if (selectedUrgency === 'all') {
+            return !reminder.completed;
+          }
+          return !reminder.completed && reminder.urgency === selectedUrgency;
         case 'all':
           return true;
         default:
@@ -398,6 +439,34 @@ const ChecklistReminder: React.FC = () => {
       }
     })
     .sort((a, b) => {
+      // For "Due" tab, sort by urgency first, then by date/time
+      if (activeTab === 'due') {
+        const urgencyOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
+        const urgencyDiff = urgencyOrder[a.urgency] - urgencyOrder[b.urgency];
+        if (urgencyDiff !== 0) return urgencyDiff;
+        
+        // Then sort by date/time
+        if (a.dueDate && b.dueDate) {
+          // If both have time, compare the full datetime
+          if (a.dueTime && b.dueTime) {
+            const aDateTime = new Date(a.dueDate);
+            const aParts = a.dueTime.split(':');
+            aDateTime.setHours(parseInt(aParts[0]), parseInt(aParts[1]));
+            
+            const bDateTime = new Date(b.dueDate);
+            const bParts = b.dueTime.split(':');
+            bDateTime.setHours(parseInt(bParts[0]), parseInt(bParts[1]));
+            
+            return aDateTime.getTime() - bDateTime.getTime();
+          }
+          
+          // Otherwise just compare dates
+          return a.dueDate.getTime() - b.dueDate.getTime();
+        }
+        if (a.dueDate) return -1;
+        if (b.dueDate) return 1;
+      }
+      
       if (a.isMain && !b.isMain) return -1;
       if (!a.isMain && b.isMain) return 1;
       
@@ -413,6 +482,20 @@ const ChecklistReminder: React.FC = () => {
     });
 
   const mainReminders = filteredReminders.filter(r => r.isMain);
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value as typeof activeTab);
+    
+    // Reset expanded state when changing tabs
+    if (value === 'due') {
+      // Collapse all in the due tab by default
+      const newExpandedState: Record<string, boolean> = {};
+      mainReminders.forEach(reminder => {
+        newExpandedState[reminder.id] = false;
+      });
+      setExpandedReminders(newExpandedState);
+    }
+  };
 
   if (!currentUser) {
     return (
@@ -439,19 +522,51 @@ const ChecklistReminder: React.FC = () => {
     <div className="container py-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Checklist Reminders</h1>
-        <Button onClick={() => {
-          setEditingReminder(null);
-          setNewReminderTitle('');
-          setNewReminderDescription('');
-          setNewReminderDueDate('');
-          setNewReminderDueTime('');
-          setNewReminderUrgency('medium');
-          setNewReminderParentId(undefined);
-          setDialogOpen(true);
-        }}>
-          <Plus className="mr-2 h-4 w-4" />
-          New Reminder
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => {
+            const dialog = window.confirm(
+              "Do you want to customize what information is shown for each reminder?\n\n" +
+              "- Show subtasks\n" +
+              "- Show descriptions\n" +
+              "- Show due dates\n" +
+              "- Show urgency"
+            );
+            
+            if (dialog) {
+              const showSubtasks = window.confirm("Show subtasks?");
+              const showDescription = window.confirm("Show descriptions?");
+              const showDueDate = window.confirm("Show due dates?");
+              const showUrgency = window.confirm("Show urgency labels?");
+              
+              setDisplayPreferences({
+                showSubtasks,
+                showDescription,
+                showDueDate,
+                showUrgency
+              });
+              
+              toast({
+                title: 'Display Preferences Updated',
+                description: 'Your reminder display preferences have been updated.',
+              });
+            }
+          }}>
+            Customize Display
+          </Button>
+          <Button onClick={() => {
+            setEditingReminder(null);
+            setNewReminderTitle('');
+            setNewReminderDescription('');
+            setNewReminderDueDate('');
+            setNewReminderDueTime('');
+            setNewReminderUrgency('medium');
+            setNewReminderParentId(undefined);
+            setDialogOpen(true);
+          }}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Reminder
+          </Button>
+        </div>
       </div>
       
       {error && (
@@ -484,14 +599,44 @@ const ChecklistReminder: React.FC = () => {
         />
       </div>
       
-      <Tabs defaultValue="due" value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)}>
+      <Tabs defaultValue="due" value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="mb-4">
-          <TabsTrigger value="due">Due</TabsTrigger>
+          <TabsTrigger value="due">Due Soon</TabsTrigger>
           <TabsTrigger value="today">Today</TabsTrigger>
           <TabsTrigger value="overdue">Overdue</TabsTrigger>
+          <TabsTrigger value="urgency">Urgency</TabsTrigger>
           <TabsTrigger value="completed">Completed</TabsTrigger>
           <TabsTrigger value="all">All</TabsTrigger>
         </TabsList>
+        
+        {activeTab === 'urgency' && (
+          <div className="mb-4 flex space-x-2">
+            <Badge 
+              className={`cursor-pointer ${selectedUrgency === 'all' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}
+              onClick={() => setSelectedUrgency('all')}
+            >
+              All
+            </Badge>
+            <Badge 
+              className={`cursor-pointer ${selectedUrgency === 'high' ? 'bg-red-500 text-white' : 'bg-red-100 text-red-800'}`}
+              onClick={() => setSelectedUrgency('high')}
+            >
+              High
+            </Badge>
+            <Badge 
+              className={`cursor-pointer ${selectedUrgency === 'medium' ? 'bg-yellow-500 text-white' : 'bg-yellow-100 text-yellow-800'}`}
+              onClick={() => setSelectedUrgency('medium')}
+            >
+              Medium
+            </Badge>
+            <Badge 
+              className={`cursor-pointer ${selectedUrgency === 'low' ? 'bg-green-500 text-white' : 'bg-green-100 text-green-800'}`}
+              onClick={() => setSelectedUrgency('low')}
+            >
+              Low
+            </Badge>
+          </div>
+        )}
         
         <TabsContent value={activeTab} className="space-y-4">
           {loading ? (
@@ -507,7 +652,8 @@ const ChecklistReminder: React.FC = () => {
                 {activeTab === 'completed' ? 'No completed reminders found' :
                  activeTab === 'overdue' ? 'No overdue reminders found' :
                  activeTab === 'today' ? 'No reminders due today' :
-                 activeTab === 'due' ? 'No upcoming reminders' :
+                 activeTab === 'due' ? 'No reminders due in the next 24 hours' :
+                 activeTab === 'urgency' ? `No ${selectedUrgency !== 'all' ? selectedUrgency + ' urgency' : ''} reminders found` :
                  'No reminders found'}
               </h3>
               <p className="text-muted-foreground mb-4">
@@ -533,6 +679,10 @@ const ChecklistReminder: React.FC = () => {
             <div className="space-y-6">
               {mainReminders.map((mainReminder) => {
                 const subReminders = filteredReminders.filter(r => r.parentId === mainReminder.id);
+                const isExpanded = expandedReminders[mainReminder.id] !== false;
+                
+                // In "Due" tab we only show title by default, and reveal details on click
+                const showCompactView = activeTab === 'due' && !isExpanded;
                 
                 return (
                   <Card key={mainReminder.id} className={`
@@ -540,21 +690,35 @@ const ChecklistReminder: React.FC = () => {
                     ${isOverdue(mainReminder.dueDate) && !mainReminder.completed ? 'border-red-300' : ''}
                     ${isDueToday(mainReminder.dueDate) && !mainReminder.completed ? 'border-yellow-300' : ''}
                   `}>
-                    <CardHeader className="pb-2">
+                    <CardHeader className={`${showCompactView ? 'pb-3' : 'pb-2'}`}>
                       <div className="flex items-start justify-between">
                         <div className="flex items-start gap-3">
-                          <Checkbox 
-                            checked={mainReminder.completed}
-                            onCheckedChange={(checked) => 
-                              handleToggleComplete(mainReminder.id, checked === true)
-                            }
-                            className="mt-1"
-                          />
+                          {activeTab === 'due' ? (
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="p-0 h-6 w-6"
+                              onClick={() => toggleExpandReminder(mainReminder.id)}
+                            >
+                              {isExpanded ? 
+                                <ChevronDown className="h-5 w-5" /> : 
+                                <ChevronRight className="h-5 w-5" />
+                              }
+                            </Button>
+                          ) : (
+                            <Checkbox 
+                              checked={mainReminder.completed}
+                              onCheckedChange={(checked) => 
+                                handleToggleComplete(mainReminder.id, checked === true)
+                              }
+                              className="mt-1"
+                            />
+                          )}
                           <div>
                             <CardTitle className={`${mainReminder.completed ? 'line-through text-muted-foreground' : ''}`}>
                               {mainReminder.title}
                             </CardTitle>
-                            {mainReminder.description && (
+                            {displayPreferences.showDescription && !showCompactView && mainReminder.description && (
                               <CardDescription className={`${mainReminder.completed ? 'line-through' : ''}`}>
                                 {mainReminder.description}
                               </CardDescription>
@@ -563,24 +727,44 @@ const ChecklistReminder: React.FC = () => {
                         </div>
                         
                         <div className="flex items-center gap-2">
-                          {!mainReminder.completed && (
+                          {displayPreferences.showUrgency && !mainReminder.completed && !showCompactView && (
                             <Badge className={getUrgencyColor(mainReminder.urgency)}>
                               {mainReminder.urgency.charAt(0).toUpperCase() + mainReminder.urgency.slice(1)}
                             </Badge>
                           )}
                           
-                          <div className="flex">
-                            <Button variant="ghost" size="icon" onClick={() => handleEditReminder(mainReminder)}>
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleDeleteReminder(mainReminder.id)}>
-                              <Trash className="h-4 w-4" />
-                            </Button>
-                          </div>
+                          {!showCompactView && (
+                            <div className="flex">
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                onClick={() => handleNotificationSettings(mainReminder)}
+                                title="Set up reminders"
+                              >
+                                <Bell className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                onClick={() => handleEditReminder(mainReminder)}
+                                title="Edit reminder"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                onClick={() => handleDeleteReminder(mainReminder.id)}
+                                title="Delete reminder"
+                              >
+                                <Trash className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </div>
                       
-                      {(mainReminder.dueDate || mainReminder.dueTime) && (
+                      {displayPreferences.showDueDate && (mainReminder.dueDate || mainReminder.dueTime) && !showCompactView && (
                         <div className={`flex items-center text-sm mt-1 ${
                           isOverdue(mainReminder.dueDate) && !mainReminder.completed 
                             ? 'text-red-500' 
@@ -606,11 +790,14 @@ const ChecklistReminder: React.FC = () => {
                           {isDueToday(mainReminder.dueDate) && !mainReminder.completed && !isOverdue(mainReminder.dueDate) && (
                             <span className="ml-1 font-medium">(Today)</span>
                           )}
+                          {isDueWithinHours(mainReminder.dueDate, 24) && !isDueToday(mainReminder.dueDate) && !mainReminder.completed && (
+                            <span className="ml-1 font-medium">(Due Soon)</span>
+                          )}
                         </div>
                       )}
                     </CardHeader>
                     
-                    {subReminders.length > 0 && (
+                    {displayPreferences.showSubtasks && subReminders.length > 0 && !showCompactView && (
                       <CardContent>
                         <div className="border-l-2 border-muted pl-4 space-y-2 ml-6">
                           {subReminders.map((subReminder) => (
@@ -632,12 +819,12 @@ const ChecklistReminder: React.FC = () => {
                                   <div className={`font-medium ${subReminder.completed ? 'line-through text-muted-foreground' : ''}`}>
                                     {subReminder.title}
                                   </div>
-                                  {subReminder.description && (
+                                  {displayPreferences.showDescription && subReminder.description && (
                                     <p className={`text-sm ${subReminder.completed ? 'line-through text-muted-foreground' : 'text-muted-foreground'}`}>
                                       {subReminder.description}
                                     </p>
                                   )}
-                                  {(subReminder.dueDate || subReminder.dueTime) && (
+                                  {displayPreferences.showDueDate && (subReminder.dueDate || subReminder.dueTime) && (
                                     <div className={`flex items-center text-xs mt-1 ${
                                       isOverdue(subReminder.dueDate) && !subReminder.completed 
                                         ? 'text-red-500' 
@@ -666,7 +853,7 @@ const ChecklistReminder: React.FC = () => {
                               </div>
                               
                               <div className="flex items-center gap-1">
-                                {!subReminder.completed && (
+                                {displayPreferences.showUrgency && !subReminder.completed && (
                                   <Badge className={`text-xs ${getUrgencyColor(subReminder.urgency)}`}>
                                     {subReminder.urgency.charAt(0).toUpperCase() + subReminder.urgency.slice(1)}
                                   </Badge>
@@ -687,24 +874,44 @@ const ChecklistReminder: React.FC = () => {
                       </CardContent>
                     )}
                     
-                    <CardContent className={subReminders.length > 0 ? 'pt-0' : ''}>
-                      <Button 
-                        variant="ghost" 
-                        className="text-sm" 
-                        onClick={() => {
-                          setEditingReminder(null);
-                          setNewReminderTitle('');
-                          setNewReminderDescription('');
-                          setNewReminderDueDate('');
-                          setNewReminderDueTime('');
-                          setNewReminderUrgency('medium');
-                          setNewReminderParentId(mainReminder.id);
-                          setDialogOpen(true);
-                        }}
-                      >
-                        <Plus className="h-3 w-3 mr-1" />
-                        Add Sub-task
-                      </Button>
+                    <CardContent className={subReminders.length > 0 && !showCompactView ? 'pt-0' : ''}>
+                      {!showCompactView && (
+                        <Button 
+                          variant="ghost" 
+                          className="text-sm" 
+                          onClick={() => {
+                            setEditingReminder(null);
+                            setNewReminderTitle('');
+                            setNewReminderDescription('');
+                            setNewReminderDueDate('');
+                            setNewReminderDueTime('');
+                            setNewReminderUrgency('medium');
+                            setNewReminderParentId(mainReminder.id);
+                            setDialogOpen(true);
+                          }}
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          Add Sub-task
+                        </Button>
+                      )}
+                      {showCompactView && (
+                        <div className="flex justify-between items-center">
+                          <Button 
+                            variant="ghost" 
+                            className="text-sm" 
+                            onClick={() => toggleExpandReminder(mainReminder.id)}
+                          >
+                            <ChevronDown className="h-3 w-3 mr-1" />
+                            Show Details
+                          </Button>
+                          <Checkbox 
+                            checked={mainReminder.completed}
+                            onCheckedChange={(checked) => 
+                              handleToggleComplete(mainReminder.id, checked === true)
+                            }
+                          />
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 );
@@ -837,6 +1044,19 @@ const ChecklistReminder: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      {selectedReminder && (
+        <ReminderNotificationDialog
+          open={notificationDialogOpen}
+          onOpenChange={setNotificationDialogOpen}
+          reminderId={selectedReminder.id}
+          reminderTitle={selectedReminder.title}
+          userId={currentUser.uid}
+          userEmail={currentUser.email || ''}
+          existingNotificationId={undefined} // In a real app, this would be fetched from the database
+          existingFrequency={undefined} // In a real app, this would be fetched from the database
+        />
+      )}
     </div>
   );
 };
