@@ -55,75 +55,75 @@ export async function respondToInvitation(
 
     // If accepted, add the user to the savings goal's members
     if (response === 'accepted' && invitationData.savingsId) {
+      const savingsId = invitationData.savingsId;
+      
+      // Even if we can't update the members, we'll still return success with the savingsId
+      // This allows the user to navigate to the savings goal page
+      console.log(`Returning savingsId ${savingsId} for navigation purposes, regardless of update success`);
+      
       try {
-        const savingsId = invitationData.savingsId;
         console.log(`Attempting to add user ${userId} to savings goal ${savingsId}`);
         
         const goalRef = doc(db, 'savings', savingsId);
         const goalDoc = await getDoc(goalRef);
 
-        if (goalDoc.exists()) {
-          const goalData = goalDoc.data();
-          console.log(`Retrieved savings goal data:`, goalData);
-          
-          // Use arrayUnion to safely add the user to the members array without duplicates
-          try {
-            await updateDoc(goalRef, {
-              members: arrayUnion(userId),
-              updatedAt: serverTimestamp(),
-            });
-            console.log(`Successfully added user ${userId} to savings goal members using arrayUnion`);
-          } catch (arrayUnionError) {
-            console.error("Error using arrayUnion - falling back to manual array update:", arrayUnionError);
-            
-            // Fallback to manual array update if arrayUnion fails
-            const currentMembers = Array.isArray(goalData.members) ? goalData.members : [];
-            
-            // Add the user to the members array if not already present
-            if (!currentMembers.includes(userId)) {
-              console.log(`Adding user ${userId} to members array:`, currentMembers);
-              await updateDoc(goalRef, {
-                members: [...currentMembers, userId],
-                updatedAt: serverTimestamp(),
-              });
-              console.log(`Successfully added user ${userId} to savings goal members with manual array update`);
-            } else {
-              console.log(`User ${userId} is already a member of this savings goal`);
-            }
-          }
-          
-          return {
-            success: true,
-            invitationId: invitationId,
-            savingsId: savingsId // Return the savings ID so we can redirect to it
-          };
-        } else {
+        if (!goalDoc.exists()) {
           console.log(`Savings goal with ID ${savingsId} not found`);
           return {
             success: true,
             invitationId: invitationId,
+            savingsId: savingsId, // Still return savingsId for navigation
             warning: "Invitation was processed but the savings goal could not be found."
           };
         }
-      } catch (updateError) {
-        console.error("Error updating savings goal members:", updateError);
-        
-        // Check if this is a permission error
-        if (updateError.code === 'permission-denied' || 
-            (updateError.message && updateError.message.includes('Missing or insufficient permissions'))) {
+
+        // Try updating the members array
+        try {
+          // First attempt: Use arrayUnion for the most efficient update
+          await updateDoc(goalRef, {
+            members: arrayUnion(userId),
+            updatedAt: serverTimestamp(),
+          });
+          console.log(`Successfully added user ${userId} to savings goal members`);
+          
+          return {
+            success: true,
+            invitationId: invitationId,
+            savingsId: savingsId
+          };
+        } catch (updateError) {
+          // Even if the update fails, we still want to return the savingsId
+          console.error("Error updating savings goal members:", updateError);
+          
+          // Send a more specific message depending on the error
+          if (updateError.code === 'permission-denied' || 
+              (updateError.message && updateError.message.includes('Missing or insufficient permissions'))) {
+            return {
+              success: false,
+              message: "Permission issue adding you to this savings goal. You can still view it if the owner has shared it with you.",
+              code: "permission-denied",
+              savingsId: savingsId, // Return savingsId for navigation
+              invitationId: invitationId
+            };
+          }
+          
           return {
             success: false,
-            message: "You don't have permission to join this savings goal. The owner needs to update their sharing settings.",
-            code: "permission-denied",
-            savingsId: invitationData.savingsId // Still return the savingsId for potential navigation
+            message: "Unable to add you to the savings goal automatically. You can still view it if the owner has shared it with you.",
+            code: "goal-update-error",
+            savingsId: savingsId, // Return savingsId for navigation
+            invitationId: invitationId
           };
         }
+      } catch (error) {
+        console.error("Error in the goal update process:", error);
         
+        // Still return the savingsId even if everything fails
         return {
           success: false,
-          message: "Error adding you to the savings goal. Please ask the goal owner to add you manually.",
-          code: "goal-update-error",
-          savingsId: invitationData.savingsId // Still return the savingsId for potential navigation
+          message: "There was an issue updating the savings goal, but you can still try to view it.",
+          savingsId: savingsId, // Return savingsId for navigation
+          invitationId: invitationId
         };
       }
     }
