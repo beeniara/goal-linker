@@ -375,33 +375,39 @@ const ChecklistReminder = () => {
     return dueDateCopy < today;
   };
 
-  const filteredReminders = reminders
-    .filter(reminder => {
-      if (activeTab === 'due' && reminder.completed) return false;
-      if (activeTab === 'completed' && !reminder.completed) return false;
-      if (activeTab === 'today' && (!isDueToday(reminder.dueDate) || reminder.completed)) return false;
-      if (activeTab === 'overdue' && (!isOverdue(reminder.dueDate) || reminder.completed)) return false;
-      
-      if (searchQuery && !reminder.title.toLowerCase().includes(searchQuery.toLowerCase())) {
-        return false;
-      }
-      
-      return true;
-    })
-    .sort((a, b) => {
-      if (a.isMain && !b.isMain) return -1;
-      if (!a.isMain && b.isMain) return 1;
-      
-      const urgencyOrder = { high: 0, medium: 1, low: 2 };
-      const urgencyDiff = urgencyOrder[a.urgency] - urgencyOrder[b.urgency];
-      if (urgencyDiff !== 0) return urgencyDiff;
-      
-      if (a.dueDate && b.dueDate) return a.dueDate.getTime() - b.dueDate.getTime();
-      if (a.dueDate) return -1;
-      if (b.dueDate) return 1;
-      
-      return a.createdAt.getTime() - b.createdAt.getTime();
-    });
+  const filteredReminders = reminders.filter(reminder => {
+    if (searchQuery && !reminder.title.toLowerCase().includes(searchQuery.toLowerCase())) {
+      return false;
+    }
+    
+    switch (activeTab) {
+      case 'due':
+        return !reminder.completed;
+      case 'completed':
+        return reminder.completed;
+      case 'today':
+        return isDueToday(reminder.dueDate) && !reminder.completed;
+      case 'overdue':
+        return isOverdue(reminder.dueDate) && !reminder.completed;
+      case 'all':
+        return true;
+      default:
+        return true;
+    }
+  }).sort((a, b) => {
+    if (a.isMain && !b.isMain) return -1;
+    if (!a.isMain && b.isMain) return 1;
+    
+    const urgencyOrder = { high: 0, medium: 1, low: 2 };
+    const urgencyDiff = urgencyOrder[a.urgency] - urgencyOrder[b.urgency];
+    if (urgencyDiff !== 0) return urgencyDiff;
+    
+    if (a.dueDate && b.dueDate) return a.dueDate.getTime() - b.dueDate.getTime();
+    if (a.dueDate) return -1;
+    if (b.dueDate) return 1;
+    
+    return a.createdAt.getTime() - b.createdAt.getTime();
+  });
 
   const mainReminders = filteredReminders.filter(r => r.isMain);
 
@@ -494,9 +500,17 @@ const ChecklistReminder = () => {
             </div>
           ) : mainReminders.length === 0 ? (
             <div className="text-center py-8">
-              <h3 className="text-lg font-medium mb-2">No reminders found</h3>
+              <h3 className="text-lg font-medium mb-2">
+                {activeTab === 'completed' ? 'No completed reminders found' :
+                 activeTab === 'overdue' ? 'No overdue reminders found' :
+                 activeTab === 'today' ? 'No reminders due today' :
+                 activeTab === 'due' ? 'No upcoming reminders' :
+                 'No reminders found'}
+              </h3>
               <p className="text-muted-foreground mb-4">
-                {searchQuery ? 'No reminders match your search' : 'Get started by creating your first reminder'}
+                {searchQuery ? 'No reminders match your search' : 
+                 activeTab === 'completed' ? 'Complete tasks to see them here' :
+                 'Get started by creating your first reminder'}
               </p>
               <Button onClick={() => {
                 setEditingReminder(null);
@@ -825,3 +839,4 @@ const ChecklistReminder = () => {
 };
 
 export default ChecklistReminder;
+
