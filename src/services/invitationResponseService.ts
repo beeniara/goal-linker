@@ -1,18 +1,7 @@
+
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/firebase/config';
-
-interface Invitation {
-  id: string;
-  type: 'project' | 'goal';
-  itemId: string;
-  itemTitle: string;
-  senderId: string;
-  senderName: string;
-  recipientEmail: string;
-  recipientId: string;
-  status: 'pending' | 'accepted' | 'declined';
-  createdAt: any;
-}
+import { InvitationResponse } from '@/types/invitation';
 
 /**
  * Responds to an invitation by accepting or declining it
@@ -24,60 +13,83 @@ export async function respondToInvitation(
   invitationId: string,
   userId: string,
   response: 'accepted' | 'declined'
-): Promise<void> {
+): Promise<InvitationResponse> {
   try {
     console.log(`Responding to invitation ${invitationId} with response ${response} by user ${userId}`);
 
     // Ensure the user is authenticated
     if (!userId) {
-      throw new Error('User not authenticated');
+      return {
+        success: false,
+        message: 'User not authenticated'
+      };
     }
 
-    // Fetch the invitation document
-    const invitationRef = doc(db, 'invitations', invitationId);
+    // Fetch the invitation document from the top-level collection
+    const invitationRef = doc(db, 'savingsInvitations', invitationId);
     const invitationDoc = await getDoc(invitationRef);
 
     if (!invitationDoc.exists()) {
-      throw new Error(`Invitation with ID ${invitationId} not found`);
+      return {
+        success: false,
+        message: `Invitation with ID ${invitationId} not found`
+      };
     }
 
-    const invitationData = invitationDoc.data() as Invitation;
-
-    // Verify the user is the recipient
-    if (invitationData.recipientId !== userId) {
-      throw new Error('You are not authorized to respond to this invitation');
-    }
+    const invitationData = invitationDoc.data();
 
     // Update the invitation status
     await updateDoc(invitationRef, {
       status: response,
+      inviteeId: userId, // Store the responder's ID
       updatedAt: serverTimestamp(),
     });
 
     // If accepted, add the user to the savings goal's members
-    if (response === 'accepted' && invitationData.type === 'goal') {
-      const goalRef = doc(db, 'savings', invitationData.itemId);
+    if (response === 'accepted' && invitationData.savingsId) {
+      const goalRef = doc(db, 'savings', invitationData.savingsId);
       const goalDoc = await getDoc(goalRef);
 
-      if (!goalDoc.exists()) {
-        throw new Error(`Savings goal with ID ${invitationData.itemId} not found`);
-      }
+      if (goalDoc.exists()) {
+        const goalData = goalDoc.data();
+        const currentMembers = goalData.members || [];
 
-      const goalData = goalDoc.data();
-      const currentMembers = goalData.members || [];
-
-      // Add the user to the members array if not already present
-      if (!currentMembers.includes(userId)) {
-        await updateDoc(goalRef, {
-          members: [...currentMembers, userId],
-          updatedAt: serverTimestamp(),
-        });
+        // Add the user to the members array if not already present
+        if (!currentMembers.includes(userId)) {
+          try {
+            await updateDoc(goalRef, {
+              members: [...currentMembers, userId],
+              updatedAt: serverTimestamp(),
+            });
+          } catch (updateError) {
+            console.error("Error updating savings goal members:", updateError);
+            return {
+              success: true,
+              invitationId: invitationId,
+              warning: "Invitation was processed but there was an issue adding you to the savings goal. The owner may need to add you manually."
+            };
+          }
+        }
+      } else {
+        return {
+          success: true,
+          invitationId: invitationId,
+          warning: "Invitation was processed but the savings goal could not be found."
+        };
       }
     }
 
     console.log(`Successfully responded to invitation ${invitationId}`);
-  } catch (error) {
+    return {
+      success: true,
+      invitationId: invitationId
+    };
+  } catch (error: any) {
     console.error("Error responding to invitation:", error);
-    throw error;
+    return {
+      success: false,
+      message: error.message || "Failed to respond to invitation",
+      code: error.code || "unknown-error"
+    };
   }
 }

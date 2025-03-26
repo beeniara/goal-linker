@@ -15,6 +15,7 @@ export async function getUserInvitations(userEmail: string): Promise<SavingsInvi
       return [];
     }
     
+    // Use top-level collection instead of subcollection for better permission management
     const invitationsRef = collection(db, 'savingsInvitations');
     const q = query(
       invitationsRef, 

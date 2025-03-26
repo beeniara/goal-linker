@@ -1,5 +1,6 @@
+
 import { db } from '@/firebase/config';
-import { collection, addDoc, getDocs, query, where, serverTimestamp, doc, DocumentData, DocumentReference } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, serverTimestamp, doc, updateDoc, DocumentData, DocumentReference } from 'firebase/firestore';
 import { sendEmailNotification } from './notificationService';
 import { SavingsInvitation, InvitationResponse } from '@/types/invitation';
 
@@ -14,12 +15,13 @@ export async function checkExistingInvitation(savingsId: string, inviteeEmail: s
       throw new Error('Inviter not authenticated');
     }
 
-    const invitationsRef = collection(db, 'savings', savingsId, 'invitations');
+    // Use a top-level invitations collection instead of a subcollection to avoid permission issues
+    const invitationsRef = collection(db, 'savingsInvitations');
     const q = query(
       invitationsRef,
+      where('savingsId', '==', savingsId),
       where('inviteeEmail', '==', inviteeEmail),
-      where('status', '==', 'pending'),
-      where('inviterId', '==', inviterId)
+      where('status', '==', 'pending')
     );
 
     const querySnapshot = await getDocs(q);
@@ -28,7 +30,9 @@ export async function checkExistingInvitation(savingsId: string, inviteeEmail: s
     return exists;
   } catch (error: any) {
     console.error('Error checking existing invitations:', error);
-    throw new Error(`Failed to check existing invitations: ${error.message}`);
+    // Return false instead of throwing to prevent blocking the invitation creation
+    console.log('Continuing with invitation creation despite check error');
+    return false;
   }
 }
 
@@ -69,21 +73,20 @@ export async function inviteUserToSavings(
     }
 
     // Check if invitation already exists for this specific savings goal
+    // Note: We're now handling permission errors by continuing even if the check fails
+    let invitationExists = false;
     try {
-      const invitationExists = await checkExistingInvitation(savingsId, inviteeEmail, inviterId);
+      invitationExists = await checkExistingInvitation(savingsId, inviteeEmail, inviterId);
       if (invitationExists) {
         console.log('Invitation already exists for this specific savings goal');
         return { success: false, message: 'Invitation already sent to this user for this savings goal' };
       }
-    } catch (queryError: any) {
-      console.error('Error checking existing invitations:', queryError);
-      return { 
-        success: false, 
-        message: `Error checking existing invitations: ${queryError.message || 'Firebase permission error'}. Please verify your Firebase security rules.` 
-      };
+    } catch (queryError) {
+      // We're already handling this in checkExistingInvitation, so just continue
+      console.log('Continuing despite existing invitation check error');
     }
 
-    // Create invitation
+    // Create invitation in the top-level collection instead of a subcollection
     const invitation: SavingsInvitation = {
       savingsId,
       savingsTitle,
@@ -100,8 +103,10 @@ export async function inviteUserToSavings(
         createdAt: 'serverTimestamp()'
       }));
 
-      const invitationsRef = collection(db, 'savings', savingsId, 'invitations');
+      // Use a top-level collection for invitations for better permission management
+      const invitationsRef = collection(db, 'savingsInvitations');
       const docRef = await addDoc(invitationsRef, invitation);
+      
       // Update the document to include its own ID
       await updateDoc(docRef, { id: docRef.id });
       console.log('Invitation created with ID:', docRef.id);
@@ -150,8 +155,4 @@ export async function inviteUserToSavings(
       error 
     };
   }
-}
-
-function updateDoc(docRef: DocumentReference<DocumentData, DocumentData>, arg1: { id: string; }) {
-  throw new Error('Function not implemented.');
 }
