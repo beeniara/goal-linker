@@ -15,11 +15,12 @@ export async function respondToInvitation(
   try {
     console.log(`User ${userId} ${accept ? 'accepted' : 'declined'} invitation ${invitationId}`);
     
-    // Get the invitation directly using the document reference first
+    // Get the invitation directly using the document reference
     const invitationRef = doc(db, 'savingsInvitations', invitationId);
     
-    // Use a transaction to ensure that both the invitation update and the savings update happen atomically
+    // Use a transaction to ensure data consistency
     return await runTransaction(db, async (transaction) => {
+      // IMPORTANT: Perform ALL reads first before any writes
       const invitationDoc = await transaction.get(invitationRef);
       
       if (!invitationDoc.exists()) {
@@ -31,6 +32,23 @@ export async function respondToInvitation(
       console.log('Found invitation:', invitation);
       console.log('Authenticated userId:', userId, 'inviteeEmail in invitation:', invitation.inviteeEmail);
       
+      // If accepting, we need to read the savings document first
+      let savingsDoc = null;
+      if (accept) {
+        const savingsRef = doc(db, 'savings', invitation.savingsId);
+        savingsDoc = await transaction.get(savingsRef);
+        
+        if (!savingsDoc.exists()) {
+          console.error('Savings goal not found:', invitation.savingsId);
+          return { 
+            success: true,
+            warning: 'Invitation was accepted but the savings goal may no longer exist.'
+          };
+        }
+      }
+      
+      // Now that all reads are done, perform writes
+      
       // Update invitation status
       transaction.update(invitationRef, {
         status: accept ? 'accepted' : 'declined',
@@ -41,19 +59,7 @@ export async function respondToInvitation(
       console.log('Updated invitation status in transaction');
       
       // Only attempt to add user to savings group if invitation was accepted
-      if (accept) {
-        // Add user to savings group members
-        const savingsRef = doc(db, 'savings', invitation.savingsId);
-        const savingsDoc = await transaction.get(savingsRef);
-        
-        if (!savingsDoc.exists()) {
-          console.error('Savings goal not found:', invitation.savingsId);
-          return { 
-            success: true,  // Invitation was updated successfully even if savings wasn't
-            warning: 'Invitation was accepted but the savings goal may no longer exist.'
-          };
-        }
-        
+      if (accept && savingsDoc) {
         const savingsData = savingsDoc.data();
         const members = savingsData.members || [];
         console.log('Current members in savings group:', members);
@@ -64,11 +70,9 @@ export async function respondToInvitation(
           // Add the user to the members array
           console.log('Updating savings group with new member:', userId);
           
-          // Create a new members array with the user added
-          const updatedMembers = [...members, userId];
-          
+          const savingsRef = doc(db, 'savings', invitation.savingsId);
           transaction.update(savingsRef, { 
-            members: updatedMembers,
+            members: [...members, userId],
             lastUpdatedAt: serverTimestamp()
           });
           
@@ -80,19 +84,26 @@ export async function respondToInvitation(
       
       console.log('Invitation response transaction completed successfully');
       
-      // Even if we can't send an email notification, the invitation was successfully processed
+      // Notification is handled outside the transaction
       if (accept) {
         try {
           // This is outside the transaction since it's not critical to the data consistency
-          await sendEmailNotification(
-            invitation.inviterId, // This should be an email or UID
-            'Savings Group Invitation Accepted',
-            `Your invitation to join "${invitation.savingsTitle}" has been accepted.`
-          );
-          console.log('Sent acceptance notification email');
+          // We'll call this after the transaction completes
+          setTimeout(async () => {
+            try {
+              await sendEmailNotification(
+                invitation.inviterId,
+                'Savings Group Invitation Accepted',
+                `Your invitation to join "${invitation.savingsTitle}" has been accepted.`
+              );
+              console.log('Sent acceptance notification email');
+            } catch (emailError) {
+              console.error('Error sending acceptance notification:', emailError);
+            }
+          }, 0);
+          
         } catch (emailError) {
-          console.error('Error sending acceptance notification:', emailError);
-          // Continue even if email fails, as the invitation was created successfully
+          console.error('Error setting up email notification:', emailError);
           return { 
             success: true, 
             warning: 'Invitation accepted and user added to group, but email notification failed.'
