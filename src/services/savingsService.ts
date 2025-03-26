@@ -1,6 +1,5 @@
-
 import { v4 as uuidv4 } from 'uuid';
-import { doc, setDoc, serverTimestamp, collection, getDocs, query, where } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, collection, getDocs, query, where, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 import { SavingsGoalFormValues } from '@/schemas/savingsGoalSchema';
 
@@ -15,42 +14,36 @@ export async function createSavingsGoal(
   data: SavingsGoalFormValues
 ) {
   try {
-    // Log the userId and data for debugging
     console.log("Creating savings goal for user:", userId);
     console.log("Savings goal data:", data);
     
-    // Generate a unique ID for the savings goal
     const savingsId = uuidv4();
     const savingsRef = doc(db, 'savings', savingsId);
     
-    // Prepare the data object to be saved in Firestore
     const savingsData = {
       id: savingsId,
-      userId: userId,              // Link the goal to the user
-      title: data.title,           // The name of the savings goal
-      description: data.description || '', // Optional description
-      target: data.target,         // Total amount to save
-      frequency: data.frequency,   // How often contributions will be made
-      contributionAmount: data.amount, // Amount per contribution
-      method: data.method,         // Single user or group savings
-      current: 0,                  // Initial amount saved (always 0)
-      createdAt: serverTimestamp(), // When the goal was created
-      updatedAt: serverTimestamp(), // When the goal was last updated
-      contributions: [],           // Array to track individual contributions
-      members: data.method === 'group' ? [userId] : [], // Group members (if applicable)
-      completed: false,            // Whether the goal has been achieved
+      userId: userId,
+      title: data.title,
+      description: data.description || '',
+      target: data.target,
+      frequency: data.frequency,
+      contributionAmount: data.amount,
+      method: data.method,
+      current: 0,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      contributions: [],
+      members: data.method === 'group' ? [userId] : [],
+      completed: false,
     };
     
-    // Log the complete data being saved for debugging
     console.log("Saving document with data:", savingsData);
     
-    // Save the data to Firestore
     await setDoc(savingsRef, savingsData);
     console.log("Savings goal created successfully with ID:", savingsId);
     
     return savingsId;
   } catch (error) {
-    // Enhanced error logging for debugging
     console.error("Error creating savings goal:", error);
     console.error("Error details:", JSON.stringify(error, null, 2));
     throw error;
@@ -66,16 +59,12 @@ export async function getUserSavingsGoals(userId: string) {
   try {
     console.log("Fetching savings goals for user:", userId);
     
-    // Create a reference to the savings collection
     const savingsRef = collection(db, 'savings');
     
-    // Create a query to find goals where userId matches the provided ID
     const q = query(savingsRef, where('userId', '==', userId));
     
-    // Execute the query
     const querySnapshot = await getDocs(q);
     
-    // Map the results to an array of goals with their data
     const goals = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
@@ -84,8 +73,100 @@ export async function getUserSavingsGoals(userId: string) {
     console.log(`Found ${goals.length} savings goals for user ${userId}`);
     return goals;
   } catch (error) {
-    // Enhanced error logging for debugging
     console.error("Error fetching user savings goals:", error);
+    console.error("Error details:", JSON.stringify(error, null, 2));
+    throw error;
+  }
+}
+
+/**
+ * Retrieves a single savings goal by its ID
+ * @param goalId - The ID of the savings goal to retrieve
+ * @returns The savings goal object or null if not found
+ */
+export async function getSavingsGoalById(goalId: string) {
+  try {
+    console.log("Fetching savings goal with ID:", goalId);
+    
+    const goalRef = doc(db, 'savings', goalId);
+    const goalDoc = await getDoc(goalRef);
+    
+    if (!goalDoc.exists()) {
+      console.log("No savings goal found with ID:", goalId);
+      return null;
+    }
+    
+    const goalData = goalDoc.data();
+    console.log("Retrieved savings goal:", goalData);
+    
+    return {
+      id: goalDoc.id,
+      ...goalData
+    };
+  } catch (error) {
+    console.error("Error fetching savings goal by ID:", error);
+    console.error("Error details:", JSON.stringify(error, null, 2));
+    throw error;
+  }
+}
+
+/**
+ * Adds a contribution to a savings goal
+ * @param goalId - The ID of the savings goal
+ * @param userId - The ID of the user making the contribution
+ * @param amount - The amount being contributed
+ * @param note - Optional note for the contribution
+ * @returns The updated savings goal data
+ */
+export async function addContribution(
+  goalId: string,
+  userId: string,
+  amount: number,
+  note: string = ''
+) {
+  try {
+    console.log(`Adding contribution of $${amount} to goal ${goalId} by user ${userId}`);
+    
+    const goalRef = doc(db, 'savings', goalId);
+    const goalDoc = await getDoc(goalRef);
+    
+    if (!goalDoc.exists()) {
+      throw new Error(`Savings goal with ID ${goalId} not found`);
+    }
+    
+    const goalData = goalDoc.data();
+    
+    const contributionId = uuidv4();
+    const contribution = {
+      id: contributionId,
+      userId,
+      amount,
+      note,
+      createdAt: serverTimestamp()
+    };
+    
+    const newCurrentAmount = (goalData.current || 0) + amount;
+    const isCompleted = newCurrentAmount >= goalData.target;
+    
+    await updateDoc(goalRef, {
+      current: newCurrentAmount,
+      contributions: [...(goalData.contributions || []), contribution],
+      updatedAt: serverTimestamp(),
+      completed: isCompleted
+    });
+    
+    const updatedGoalDoc = await getDoc(goalRef);
+    
+    if (!updatedGoalDoc.exists()) {
+      throw new Error("Failed to retrieve updated goal data");
+    }
+    
+    return {
+      id: updatedGoalDoc.id,
+      ...updatedGoalDoc.data()
+    };
+  } catch (error) {
+    console.error("Error adding contribution:", error);
     console.error("Error details:", JSON.stringify(error, null, 2));
     throw error;
   }

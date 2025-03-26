@@ -28,6 +28,7 @@ import './App.css';
 import FinancialStrategies from './pages/FinancialStrategies';
 import NonFinancialSupport from './pages/NonFinancialSupport';
 import Savings from './pages/Savings';
+import SavingsGoalDetail from './pages/SavingsGoalDetail';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 import Contact from './pages/Contact';
@@ -72,6 +73,7 @@ function App() {
                 
                 {/* Savings Routes */}
                 <Route path="/savings" element={<PrivateRoute element={<Savings />} />} />
+                <Route path="/savings/:id" element={<PrivateRoute element={<SavingsGoalDetail />} />} />
                 <Route path="/financial-strategies" element={<PrivateRoute element={<FinancialStrategies />} />} />
                 <Route path="/non-financial-support" element={<PrivateRoute element={<NonFinancialSupport />} />} />
                 
