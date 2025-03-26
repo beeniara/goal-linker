@@ -32,8 +32,14 @@ const Login = () => {
               <ol className="list-decimal pl-5 text-sm">
                 <li>Click on the error link in the console</li>
                 <li>Sign in to your Firebase console</li>
-                <li>Create the index as suggested</li>
-                <li>Wait a few minutes for the index to be created</li>
+                <li>In the form that appears:
+                  <ul className="list-disc pl-5 mt-1">
+                    <li>Field 1: Enter <strong>userId</strong> with <strong>Ascending</strong> order</li>
+                    <li>Field 2: Enter <strong>createdAt</strong> with <strong>Descending</strong> order</li>
+                    <li>Select <strong>Collection</strong> for "Query scopes"</li>
+                  </ul>
+                </li>
+                <li>Click "Create index" and wait a few minutes for it to build</li>
               </ol>
               <p className="text-xs mt-2 text-muted-foreground">This is required for sorting reminders by creation date.</p>
             </AlertDescription>
