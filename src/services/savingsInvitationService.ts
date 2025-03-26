@@ -27,6 +27,28 @@ export async function inviteUserToSavings(
   try {
     console.log(`Inviting ${inviteeEmail} to savings group ${savingsId}`);
     
+    // Input validation
+    if (!savingsId || !savingsTitle) {
+      return { 
+        success: false, 
+        message: 'Missing savings information. Please provide a valid savings ID and title.' 
+      };
+    }
+    
+    if (!inviterId || !inviterName) {
+      return { 
+        success: false, 
+        message: 'Missing user information. Please log out and log back in to refresh your user data.' 
+      };
+    }
+    
+    if (!inviteeEmail) {
+      return { 
+        success: false, 
+        message: 'Please provide an email address for the person you want to invite.' 
+      };
+    }
+    
     // Check if invitation already exists
     const invitationsRef = collection(db, 'savingsInvitations');
     const q = query(
@@ -36,10 +58,18 @@ export async function inviteUserToSavings(
       where('status', '==', 'pending')
     );
     
-    const querySnapshot = await getDocs(q);
-    if (!querySnapshot.empty) {
-      console.log('Invitation already exists');
-      return { success: false, message: 'Invitation already sent to this user' };
+    try {
+      const querySnapshot = await getDocs(q);
+      if (!querySnapshot.empty) {
+        console.log('Invitation already exists');
+        return { success: false, message: 'Invitation already sent to this user' };
+      }
+    } catch (queryError: any) {
+      console.error('Error checking existing invitations:', queryError);
+      return { 
+        success: false, 
+        message: 'Error checking existing invitations. ' + (queryError.message || '')
+      };
     }
     
     // Create invitation
@@ -54,6 +84,11 @@ export async function inviteUserToSavings(
     };
     
     try {
+      console.log('Creating invitation with data:', JSON.stringify({
+        ...invitation,
+        createdAt: 'serverTimestamp()'
+      }));
+      
       const docRef = await addDoc(collection(db, 'savingsInvitations'), invitation);
       console.log('Invitation created with ID:', docRef.id);
       
@@ -67,7 +102,11 @@ export async function inviteUserToSavings(
       } catch (emailError) {
         console.error('Error sending invitation email:', emailError);
         // Continue even if email fails, as the invitation was created successfully
-        return { success: true, invitationId: docRef.id, warning: 'Invitation created but email notification failed' };
+        return { 
+          success: true, 
+          invitationId: docRef.id, 
+          warning: 'Invitation created but email notification failed' 
+        };
       }
       
       return { success: true, invitationId: docRef.id };
@@ -76,12 +115,19 @@ export async function inviteUserToSavings(
       let errorMessage = 'Failed to create invitation.';
       
       if (firebaseError.code === 'permission-denied') {
-        errorMessage = 'Permission denied. Please check with the administrator to ensure your account has the proper permissions.';
+        errorMessage = 'Permission denied. You do not have access to create invitations. Please check with the administrator to ensure your account has the proper permissions.';
       } else if (firebaseError.message && firebaseError.message.includes('Missing or insufficient permissions')) {
-        errorMessage = 'Missing or insufficient permissions. Verify that Firebase security rules allow this operation.';
+        errorMessage = 'Missing or insufficient permissions. Verify that Firebase security rules allow invitation creation for your user.';
+      } else if (firebaseError.code) {
+        errorMessage = `Error (${firebaseError.code}): ${firebaseError.message || 'Unknown error'}`;
       }
       
-      return { success: false, message: errorMessage, error: firebaseError };
+      return { 
+        success: false, 
+        message: errorMessage, 
+        error: firebaseError,
+        code: firebaseError.code 
+      };
     }
   } catch (error: any) {
     console.error('Error creating invitation:', error);
