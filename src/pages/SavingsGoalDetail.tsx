@@ -2,62 +2,18 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { getSavingsGoalById, addContribution } from '@/services/savingsService';
+import { getSavingsGoalById } from '@/services/savingsService';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardFooter, 
-  CardHeader, 
-  CardTitle 
-} from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { Separator } from '@/components/ui/separator';
-import { Input } from '@/components/ui/input';
-import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from '@/components/ui/form';
-import { 
-  PiggyBank, 
-  ArrowLeft, 
-  Calendar, 
-  User, 
-  DollarSign, 
-  Clock, 
-  Plus, 
-  Car,
-  CarFront,
-  Bike,
-  Home,
-  Laptop,
-  Smartphone,
-  Plane,
-  ShoppingBag,
-  HelpCircle
-} from 'lucide-react';
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
-import * as z from 'zod';
-import { format } from 'date-fns';
+import { PiggyBank, ArrowLeft } from 'lucide-react';
 
-const contributionFormSchema = z.object({
-  amount: z.string()
-    .min(1, { message: "Amount is required" })
-    .refine((val) => !isNaN(Number(val)), { message: "Amount must be a number" })
-    .refine((val) => Number(val) > 0, { message: "Amount must be greater than 0" }),
-  note: z.string().optional(),
-});
-
-type ContributionFormValues = z.infer<typeof contributionFormSchema>;
-
-type TimeFrame = 'weeks' | 'months' | 'years';
+// Import our refactored components
+import { GoalHeader } from '@/components/savings/SavingsGoalDetails/GoalHeader';
+import { SavingsProgress } from '@/components/savings/SavingsGoalDetails/SavingsProgress';
+import { ContributionForm } from '@/components/savings/SavingsGoalDetails/ContributionForm';
+import { SavingsMethod } from '@/components/savings/SavingsGoalDetails/SavingsMethod';
+import { ContributionsHistory } from '@/components/savings/SavingsGoalDetails/ContributionsHistory';
 
 const SavingsGoalDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -66,18 +22,8 @@ const SavingsGoalDetail = () => {
   const navigate = useNavigate();
   const [savingsGoal, setSavingsGoal] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [contributionLoading, setContributionLoading] = useState(false);
   const [showContributionForm, setShowContributionForm] = useState(false);
-  const [timeFrame, setTimeFrame] = useState<TimeFrame>('weeks');
   const [username, setUsername] = useState<string>('');
-
-  const form = useForm<ContributionFormValues>({
-    resolver: zodResolver(contributionFormSchema),
-    defaultValues: {
-      amount: '',
-      note: '',
-    },
-  });
 
   useEffect(() => {
     const fetchSavingsGoal = async () => {
@@ -115,40 +61,6 @@ const SavingsGoalDetail = () => {
     fetchSavingsGoal();
   }, [id, currentUser, navigate, toast]);
 
-  const onSubmit = async (data: ContributionFormValues) => {
-    if (!currentUser || !id) return;
-
-    setContributionLoading(true);
-    try {
-      const amount = Number(data.amount);
-      const updatedGoal = await addContribution(id, currentUser.uid, amount, data.note || '');
-      
-      setSavingsGoal(updatedGoal);
-      
-      toast({
-        title: "Contribution Added",
-        description: `$${amount.toFixed(2)} has been added to your savings goal.`,
-      });
-      
-      form.reset();
-      setShowContributionForm(false);
-    } catch (error) {
-      console.error("Error adding contribution:", error);
-      toast({
-        title: "Error",
-        description: "Failed to add contribution. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setContributionLoading(false);
-    }
-  };
-
-  const calculateProgress = () => {
-    if (!savingsGoal || savingsGoal.target === 0) return 0;
-    return Math.min(100, (savingsGoal.current / savingsGoal.target) * 100);
-  };
-
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -157,73 +69,9 @@ const SavingsGoalDetail = () => {
     }).format(amount);
   };
 
-  const formatTimestamp = (timestamp: any): string => {
-    if (!timestamp) return 'Date unknown';
-    
-    try {
-      if (timestamp.toDate && typeof timestamp.toDate === 'function') {
-        return format(timestamp.toDate(), "MMM d, yyyy 'at' h:mm a");
-      }
-      
-      if (timestamp instanceof Date) {
-        return format(timestamp, "MMM d, yyyy 'at' h:mm a");
-      }
-      
-      if (timestamp.seconds) {
-        return format(new Date(timestamp.seconds * 1000), "MMM d, yyyy 'at' h:mm a");
-      }
-      
-      return format(new Date(timestamp), "MMM d, yyyy 'at' h:mm a");
-    } catch (error) {
-      console.error("Error formatting date:", error, timestamp);
-      return 'Invalid date';
-    }
-  };
-
-  const getGoalIcon = () => {
-    if (!savingsGoal?.title) return <PiggyBank className="h-8 w-8 text-primary" />;
-    
-    const title = savingsGoal.title.toLowerCase();
-    
-    if (title.includes('car')) {
-      return <Car className="h-8 w-8 text-primary" />;
-    } else if (title.includes('auto') || title.includes('vehicle')) {
-      return <CarFront className="h-8 w-8 text-primary" />;
-    } else if (title.includes('bike') || title.includes('bicycle')) {
-      return <Bike className="h-8 w-8 text-primary" />;
-    } else if (title.includes('house') || title.includes('home')) {
-      return <Home className="h-8 w-8 text-primary" />;
-    } else if (title.includes('laptop') || title.includes('computer')) {
-      return <Laptop className="h-8 w-8 text-primary" />;
-    } else if (title.includes('phone') || title.includes('mobile')) {
-      return <Smartphone className="h-8 w-8 text-primary" />;
-    } else if (title.includes('vacation') || title.includes('travel') || title.includes('trip')) {
-      return <Plane className="h-8 w-8 text-primary" />;
-    } else if (title.includes('shopping')) {
-      return <ShoppingBag className="h-8 w-8 text-primary" />;
-    } else {
-      return <PiggyBank className="h-8 w-8 text-primary" />;
-    }
-  };
-
-  const calculateTimeRemaining = () => {
-    if (!savingsGoal) return { value: 0, unit: 'weeks' as TimeFrame };
-    
-    const amountLeft = savingsGoal.target - savingsGoal.current;
-    if (amountLeft <= 0) return { value: 0, unit: timeFrame };
-    
-    const weeksLeft = Math.ceil(amountLeft / savingsGoal.contributionAmount);
-    
-    switch (timeFrame) {
-      case 'weeks':
-        return { value: weeksLeft, unit: 'weeks' };
-      case 'months':
-        return { value: Math.ceil(weeksLeft / 4.33), unit: 'months' };
-      case 'years':
-        return { value: Math.ceil(weeksLeft / 52), unit: 'years' };
-      default:
-        return { value: weeksLeft, unit: 'weeks' };
-    }
+  const handleContributionAdded = (updatedGoal: any) => {
+    setSavingsGoal(updatedGoal);
+    setShowContributionForm(false);
   };
 
   if (loading) {
@@ -252,8 +100,6 @@ const SavingsGoalDetail = () => {
     );
   }
 
-  const timeRemaining = calculateTimeRemaining();
-
   return (
     <div className="container max-w-4xl mx-auto p-6 space-y-6">
       <Button variant="ghost" asChild className="mb-4 px-0">
@@ -264,221 +110,49 @@ const SavingsGoalDetail = () => {
       </Button>
 
       <Card>
-        <CardHeader>
-          <div className="flex justify-between items-start">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-full">
-                {getGoalIcon()}
-              </div>
-              <div>
-                <CardTitle className="text-2xl font-bold">{savingsGoal.title}</CardTitle>
-                <CardDescription>{savingsGoal.description}</CardDescription>
-              </div>
-            </div>
-            <Button 
-              variant={savingsGoal.completed ? "outline" : "default"} 
-              disabled={savingsGoal.completed} 
-              onClick={() => setShowContributionForm(!showContributionForm)}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              {savingsGoal.completed ? "Goal Reached" : "Add Contribution"}
-            </Button>
-          </div>
-        </CardHeader>
+        <GoalHeader 
+          title={savingsGoal.title}
+          description={savingsGoal.description}
+          userId={currentUser?.uid || ''}
+          username={username}
+          savingsId={id || ''}
+          completed={savingsGoal.completed}
+          method={savingsGoal.method}
+          onAddContribution={() => setShowContributionForm(!showContributionForm)}
+        />
         <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Progress</span>
-              <span className="font-medium">
-                {formatCurrency(savingsGoal.current)} of {formatCurrency(savingsGoal.target)}
-              </span>
-            </div>
-            <Progress 
-              value={calculateProgress()} 
-              className="h-4" 
-            />
-            <div className="flex justify-between items-center">
-              <div className="text-sm text-muted-foreground">
-                Estimated time remaining:
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-sm">
-                  {timeRemaining.value} {timeRemaining.unit}
-                </span>
-                <Select
-                  value={timeFrame}
-                  onValueChange={(value) => setTimeFrame(value as TimeFrame)}
-                >
-                  <SelectTrigger className="h-8 w-32">
-                    <SelectValue placeholder="Time unit" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="weeks">Weeks</SelectItem>
-                    <SelectItem value="months">Months</SelectItem>
-                    <SelectItem value="years">Years</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="text-sm text-right">
-              {calculateProgress().toFixed(1)}% Complete
-            </div>
-          </div>
+          <SavingsProgress 
+            current={savingsGoal.current}
+            target={savingsGoal.target}
+            contributionAmount={savingsGoal.contributionAmount}
+            formatCurrency={formatCurrency}
+          />
 
           {showContributionForm && (
-            <Card className="border-dashed">
-              <CardHeader className="py-3">
-                <CardTitle className="text-lg">Add Contribution</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                    <FormField
-                      control={form.control}
-                      name="amount"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Contribution Amount</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                              <DollarSign className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-                              <Input className="pl-10" placeholder="0.00" {...field} />
-                            </div>
-                          </FormControl>
-                          <FormDescription>
-                            How much would you like to contribute?
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="note"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Note (Optional)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g., Monthly contribution" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <div className="flex justify-end space-x-2">
-                      <Button 
-                        type="button" 
-                        variant="outline" 
-                        disabled={contributionLoading}
-                        onClick={() => setShowContributionForm(false)}
-                      >
-                        Cancel
-                      </Button>
-                      <Button 
-                        type="submit" 
-                        disabled={contributionLoading}
-                      >
-                        {contributionLoading ? "Saving..." : "Add Contribution"}
-                      </Button>
-                    </div>
-                  </form>
-                </Form>
-              </CardContent>
-            </Card>
+            <ContributionForm 
+              savingsId={id || ''}
+              userId={currentUser?.uid || ''}
+              onContributionAdded={handleContributionAdded}
+              onCancel={() => setShowContributionForm(false)}
+            />
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <h3 className="text-sm font-medium">Savings Method</h3>
-              <div className="flex items-center">
-                <User className="h-4 w-4 mr-2 text-muted-foreground" />
-                <span className="capitalize">{savingsGoal.method}</span>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <h3 className="text-sm font-medium">Contribution Plan</h3>
-              <div className="flex items-center">
-                <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
-                <span>
-                  {formatCurrency(savingsGoal.contributionAmount)} every {savingsGoal.frequency}
-                </span>
-              </div>
-            </div>
-          </div>
+          <SavingsMethod 
+            method={savingsGoal.method}
+            contributionAmount={savingsGoal.contributionAmount}
+            frequency={savingsGoal.frequency}
+            formatCurrency={formatCurrency}
+          />
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Contribution History</CardTitle>
-          <div className="flex flex-col">
-            <CardDescription>
-              {savingsGoal.contributions?.length
-                ? `${savingsGoal.contributions.length} contribution${savingsGoal.contributions.length !== 1 ? 's' : ''} so far`
-                : "No contributions yet"}
-            </CardDescription>
-            <div className="mt-1 flex items-center text-sm text-muted-foreground">
-              <User className="h-3.5 w-3.5 mr-1" />
-              <span>{username}</span>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {(!savingsGoal.contributions || savingsGoal.contributions.length === 0) ? (
-            <div className="text-center py-6 text-muted-foreground">
-              <Clock className="h-10 w-10 mx-auto mb-2 text-muted-foreground/60" />
-              <p>No contributions have been made yet.</p>
-              <p className="text-sm">Start adding contributions to track your progress!</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {savingsGoal.contributions
-                .slice()
-                .sort((a: any, b: any) => {
-                  const getTimestamp = (item: any) => {
-                    if (!item.createdAt) return 0;
-                    if (item.createdAt.toDate) return item.createdAt.toDate().getTime();
-                    if (item.createdAt.seconds) return item.createdAt.seconds * 1000;
-                    if (item.createdAt instanceof Date) return item.createdAt.getTime();
-                    return new Date(item.createdAt).getTime();
-                  };
-                  
-                  return getTimestamp(b) - getTimestamp(a);
-                })
-                .map((contribution: any, index: number) => {
-                  return (
-                    <div key={contribution.id || index}>
-                      <div className="flex justify-between items-center py-2">
-                        <div className="flex flex-col">
-                          <span className="font-medium">
-                            {formatCurrency(contribution.amount)}
-                          </span>
-                          {contribution.note && (
-                            <span className="text-sm text-muted-foreground">
-                              {contribution.note}
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {formatTimestamp(contribution.createdAt)}
-                        </div>
-                      </div>
-                      {index < savingsGoal.contributions.length - 1 && <Separator />}
-                    </div>
-                  );
-                })}
-            </div>
-          )}
-        </CardContent>
-        <CardFooter className="flex justify-between">
-          <div className="text-sm text-muted-foreground">
-            Target: {formatCurrency(savingsGoal.target)}
-          </div>
-          <div className="text-sm font-medium">
-            Current: {formatCurrency(savingsGoal.current)}
-          </div>
-        </CardFooter>
-      </Card>
+      <ContributionsHistory 
+        contributions={savingsGoal.contributions || []}
+        current={savingsGoal.current}
+        target={savingsGoal.target}
+        formatCurrency={formatCurrency}
+        username={username}
+      />
     </div>
   );
 };
