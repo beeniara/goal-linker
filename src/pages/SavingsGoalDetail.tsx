@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { getSavingsGoalById } from '@/services/savingsService';
+import { getSavingsGoalById, SavingsGoal } from '@/services/savingsService';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -29,7 +29,7 @@ const SavingsGoalDetail = () => {
   const { currentUser } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [savingsGoal, setSavingsGoal] = useState<any>(null);
+  const [savingsGoal, setSavingsGoal] = useState<SavingsGoal | null>(null);
   const [loading, setLoading] = useState(true);
   const [showContributionForm, setShowContributionForm] = useState(false);
   const [username, setUsername] = useState<string>('');

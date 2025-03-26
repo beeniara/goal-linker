@@ -1,8 +1,30 @@
-
 import { v4 as uuidv4 } from 'uuid';
 import { doc, setDoc, serverTimestamp, collection, getDocs, query, where, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 import { SavingsGoalFormValues } from '@/schemas/savingsGoalSchema';
+
+export interface SavingsGoal {
+  id: string;
+  userId: string;
+  title: string;
+  description: string;
+  target: number;
+  frequency: string;
+  contributionAmount: number;
+  method: 'individual' | 'group';
+  current: number;
+  createdAt: any;
+  updatedAt: any;
+  contributions: Array<{
+    id: string;
+    userId: string;
+    amount: number;
+    note: string;
+    createdAt: any;
+  }>;
+  members: string[];
+  completed: boolean;
+}
 
 /**
  * Creates a new savings goal in Firestore
@@ -56,7 +78,7 @@ export async function createSavingsGoal(
  * @param userId - The ID of the user whose goals to fetch
  * @returns An array of savings goal objects
  */
-export async function getUserSavingsGoals(userId: string) {
+export async function getUserSavingsGoals(userId: string): Promise<SavingsGoal[]> {
   try {
     console.log("Fetching savings goals for user:", userId);
     
@@ -85,7 +107,7 @@ export async function getUserSavingsGoals(userId: string) {
  * @param goalId - The ID of the savings goal to retrieve
  * @returns The savings goal object or null if not found
  */
-export async function getSavingsGoalById(goalId: string) {
+export async function getSavingsGoalById(goalId: string): Promise<SavingsGoal | null> {
   try {
     console.log("Fetching savings goal with ID:", goalId);
     
@@ -103,7 +125,7 @@ export async function getSavingsGoalById(goalId: string) {
     return {
       id: goalDoc.id,
       ...goalData
-    };
+    } as SavingsGoal;
   } catch (error) {
     console.error("Error fetching savings goal by ID:", error);
     console.error("Error details:", JSON.stringify(error, null, 2));
@@ -124,7 +146,7 @@ export async function addContribution(
   userId: string,
   amount: number,
   note: string = ''
-) {
+): Promise<SavingsGoal> {
   try {
     console.log(`Adding contribution of $${amount} to goal ${goalId} by user ${userId}`);
     
@@ -138,8 +160,6 @@ export async function addContribution(
     const goalData = goalDoc.data();
     
     const contributionId = uuidv4();
-    // Use a regular Date timestamp for the contribution object that will go into an array
-    // instead of serverTimestamp() which can't be used in arrays
     const now = new Date();
     const contribution = {
       id: contributionId,
