@@ -3,6 +3,8 @@ import React from 'react';
 import { LoginForm } from '@/components/auth/LoginForm';
 import { Link } from 'react-router-dom';
 import { Toaster } from '@/components/ui/toaster';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
 
 const Login = () => {
   return (
@@ -21,6 +23,22 @@ const Login = () => {
               Enter your credentials to access your account
             </p>
           </div>
+          
+          <Alert className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Firebase Index Required</AlertTitle>
+            <AlertDescription>
+              <p className="mb-2">If you see an error about missing Firestore indexes after login, you'll need to create it:</p>
+              <ol className="list-decimal pl-5 text-sm">
+                <li>Click on the error link in the console</li>
+                <li>Sign in to your Firebase console</li>
+                <li>Create the index as suggested</li>
+                <li>Wait a few minutes for the index to be created</li>
+              </ol>
+              <p className="text-xs mt-2 text-muted-foreground">This is required for sorting reminders by creation date.</p>
+            </AlertDescription>
+          </Alert>
+          
           <LoginForm />
         </div>
       </main>
