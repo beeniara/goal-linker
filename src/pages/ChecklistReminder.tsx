@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { collection, getDocs, query, where, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, orderBy } from 'firebase/firestore';
-import { db } from '@/firebase/config';
+import { db, auth } from '@/firebase/config';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { 
@@ -70,24 +70,40 @@ const ChecklistReminder = () => {
   const [newReminderParentId, setNewReminderParentId] = useState<string | undefined>(undefined);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('due');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchReminders();
+    if (currentUser) {
+      fetchReminders();
+    } else {
+      console.log("No authenticated user found. Please log in first.");
+      setLoading(false);
+      setError("You need to be logged in to view reminders.");
+    }
   }, [currentUser]);
 
   const fetchReminders = async () => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      console.error("Cannot fetch reminders: No authenticated user");
+      setError("Authentication required. Please log in.");
+      setLoading(false);
+      return;
+    }
     
     try {
+      console.log("Fetching reminders for user:", currentUser.uid);
       setLoading(true);
+      setError(null);
+      
       const remindersRef = collection(db, 'reminders');
       const q = query(
         remindersRef, 
         where('userId', '==', currentUser.uid),
-        orderBy('dueDate', 'asc')
+        orderBy('createdAt', 'desc') // Fall back to creation date if due date is not available
       );
       
       const querySnapshot = await getDocs(q);
+      console.log(`Found ${querySnapshot.size} reminders`);
       
       const remindersList: ReminderItem[] = [];
       querySnapshot.forEach((doc) => {
@@ -109,6 +125,7 @@ const ChecklistReminder = () => {
       setReminders(remindersList);
     } catch (error) {
       console.error('Error fetching reminders:', error);
+      setError('Failed to load reminders. Please try again.');
       toast({
         title: 'Error',
         description: 'Failed to load reminders. Please try again.',
@@ -120,9 +137,30 @@ const ChecklistReminder = () => {
   };
 
   const handleAddReminder = async () => {
-    if (!currentUser || !newReminderTitle.trim()) return;
+    if (!currentUser) {
+      console.error("Cannot add reminder: No authenticated user");
+      setError("Authentication required. Please log in.");
+      toast({
+        title: 'Authentication Error',
+        description: 'You must be logged in to add reminders.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    if (!newReminderTitle.trim()) {
+      toast({
+        title: 'Validation Error',
+        description: 'Reminder title is required.',
+        variant: 'destructive',
+      });
+      return;
+    }
     
     try {
+      console.log("Adding new reminder for user:", currentUser.uid);
+      setError(null);
+      
       const newReminder = {
         title: newReminderTitle.trim(),
         description: newReminderDescription.trim() || null,
@@ -136,7 +174,10 @@ const ChecklistReminder = () => {
         createdAt: serverTimestamp(),
       };
       
-      await addDoc(collection(db, 'reminders'), newReminder);
+      console.log("New reminder data:", newReminder);
+      
+      const docRef = await addDoc(collection(db, 'reminders'), newReminder);
+      console.log("Reminder added with ID:", docRef.id);
       
       toast({
         title: 'Success',
@@ -156,6 +197,7 @@ const ChecklistReminder = () => {
       fetchReminders();
     } catch (error) {
       console.error('Error adding reminder:', error);
+      setError('Failed to add reminder. Please check your Firebase permissions and try again.');
       toast({
         title: 'Error',
         description: 'Failed to add reminder. Please try again.',
@@ -354,6 +396,28 @@ const ChecklistReminder = () => {
 
   const mainReminders = filteredReminders.filter(r => r.isMain);
 
+  // Show login message if no user
+  if (!currentUser) {
+    return (
+      <div className="container py-6">
+        <div className="text-center py-12">
+          <h1 className="text-3xl font-bold mb-4">Authentication Required</h1>
+          <p className="text-muted-foreground mb-6">
+            You need to be logged in to view and manage your reminders.
+          </p>
+          <div className="flex justify-center space-x-4">
+            <Button variant="default" asChild>
+              <Link to="/login">Log In</Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link to="/signup">Sign Up</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container py-6 space-y-6">
       <div className="flex justify-between items-center">
@@ -372,6 +436,16 @@ const ChecklistReminder = () => {
           New Reminder
         </Button>
       </div>
+      
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
+          <strong className="font-bold">Error: </strong>
+          <span className="block sm:inline">{error}</span>
+          <span className="block mt-1 text-sm">
+            Please check your Firebase configuration and ensure you have the correct permissions.
+          </span>
+        </div>
+      )}
       
       <div className="relative">
         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />

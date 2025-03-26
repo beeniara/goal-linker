@@ -5,11 +5,8 @@ import { getFirestore, enableIndexedDbPersistence } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 // Your web app's Firebase configuration
-// Replace these placeholder values with your actual Firebase config
-// You can find this in your Firebase project settings
 const firebaseConfig = {
-  // IMPORTANT: Replace these values with your actual Firebase config
-  // If you're seeing authentication errors, this is likely the cause
+  // Using environment variables with fallbacks
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "YOUR_API_KEY",
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "YOUR_PROJECT_ID.firebaseapp.com",
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "YOUR_PROJECT_ID",
@@ -31,6 +28,13 @@ console.log("Firebase config being used:",
   }, {})
 );
 
+// Check if we have valid configuration
+if (firebaseConfig.apiKey === "YOUR_API_KEY" || !firebaseConfig.apiKey) {
+  console.error("ERROR: Firebase API key is missing or invalid!");
+  console.error("Please set the VITE_FIREBASE_API_KEY environment variable.");
+  console.error("Firebase functionality will not work correctly!");
+}
+
 // Initialize Firebase app instance with configuration
 const app = initializeApp(firebaseConfig);
 
@@ -40,7 +44,6 @@ export const db = getFirestore(app); // Firestore database service
 export const storage = getStorage(app); // Storage service for files
 
 // Enable offline persistence when possible
-// This allows the app to work offline by caching Firestore data
 try {
   console.log("Attempting to enable Firestore persistence...");
   enableIndexedDbPersistence(db)
