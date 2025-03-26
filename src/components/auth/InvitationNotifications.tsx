@@ -7,6 +7,7 @@ import { getUserInvitations, respondToInvitation, SavingsInvitation } from '@/se
 import { useToast } from '@/hooks/use-toast';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertMessageDisplay } from '@/components/alerts/AlertMessageDisplay';
+import { useNavigate } from 'react-router-dom';
 
 interface InvitationNotificationsProps {
   userEmail: string;
@@ -19,6 +20,7 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
   const [respondingTo, setRespondingTo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchInvitations = async () => {
@@ -52,6 +54,7 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
       setRespondingTo(invitationId);
       setError(null);
       
+      const invitation = invitations.find(inv => inv.id === invitationId);
       const response = await respondToInvitation(invitationId, userId, accept);
       
       if (response.success) {
@@ -60,6 +63,10 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
           toast({
             title: accept ? 'Invitation Accepted' : 'Invitation Declined',
             description: response.warning,
+<<<<<<< HEAD
+=======
+            // Change from 'warning' to 'default' since 'warning' is not a supported variant
+>>>>>>> c966262c5787bf396604da7056bd03b26cd832d6
             variant: 'default',
           });
         } else {
@@ -76,6 +83,17 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
         setInvitations(prevInvitations => 
           prevInvitations.filter(inv => inv.id !== invitationId)
         );
+        
+        // If accepted, navigate to the savings page with a success message
+        if (accept && invitation) {
+          navigate('/savings', { 
+            state: { 
+              successMessage: `You have been added to the savings goal "${invitation.savingsTitle}"`,
+              savingsId: invitation.savingsId
+            },
+            replace: true
+          });
+        }
       } else {
         // Handle specific error cases
         if (response.code === 'permission-denied') {
