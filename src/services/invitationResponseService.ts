@@ -1,6 +1,6 @@
 
 import { db } from '@/firebase/config';
-import { doc, updateDoc, getDoc, arrayUnion } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
 import { sendEmailNotification } from './notificationService';
 import { SavingsInvitation, InvitationResponse } from '@/types/invitation';
 
@@ -31,11 +31,23 @@ export async function respondToInvitation(
     try {
       await updateDoc(invitationRef, {
         status: accept ? 'accepted' : 'declined',
-        inviteeId: userId
+        inviteeId: userId,
+        respondedAt: serverTimestamp()
       });
       console.log('Updated invitation status successfully');
     } catch (updateError: any) {
       console.error('Error updating invitation status:', updateError);
+      
+      // Check for permission errors
+      if (updateError.code === 'permission-denied' || 
+          (updateError.message && updateError.message.includes('Missing or insufficient permissions'))) {
+        return { 
+          success: false, 
+          message: 'Permission denied. Please make sure you have access to this invitation.',
+          code: 'permission-denied' 
+        };
+      }
+      
       return { 
         success: false, 
         message: `Error updating invitation: ${updateError.message}`,
@@ -43,16 +55,19 @@ export async function respondToInvitation(
       };
     }
     
+    // Only attempt to add user to savings group if invitation was accepted
     if (accept) {
       // Add user to savings group members
-      const savingsRef = doc(db, 'savings', invitation.savingsId);
-      
       try {
+        const savingsRef = doc(db, 'savings', invitation.savingsId);
         const savingsDoc = await getDoc(savingsRef);
         
         if (!savingsDoc.exists()) {
           console.error('Savings goal not found:', invitation.savingsId);
-          return { success: false, message: 'Savings goal not found' };
+          return { 
+            success: true,  // Invitation was updated successfully even if savings wasn't
+            warning: 'Invitation was accepted but the savings goal may no longer exist.'
+          };
         }
         
         const savingsData = savingsDoc.data();
@@ -61,31 +76,61 @@ export async function respondToInvitation(
         if (!members.includes(userId)) {
           // Use arrayUnion to safely add the user to the members array
           console.log('Adding user to savings group members:', userId);
-          await updateDoc(savingsRef, { 
-            members: arrayUnion(userId)
-          });
-          
-          // Notify the inviter that the invitation was accepted
           try {
-            await sendEmailNotification(
-              invitation.inviterId,
-              'Savings Group Invitation Accepted',
-              `Your invitation to join "${invitation.savingsTitle}" has been accepted.`
-            );
-            console.log('Sent acceptance notification email');
-          } catch (emailError) {
-            console.error('Error sending acceptance notification:', emailError);
-            // Continue even if email fails
+            await updateDoc(savingsRef, { 
+              members: arrayUnion(userId),
+              lastUpdatedAt: serverTimestamp()
+            });
+            
+            // Notify the inviter that the invitation was accepted
+            try {
+              await sendEmailNotification(
+                invitation.inviterId,
+                'Savings Group Invitation Accepted',
+                `Your invitation to join "${invitation.savingsTitle}" has been accepted.`
+              );
+              console.log('Sent acceptance notification email');
+            } catch (emailError) {
+              console.error('Error sending acceptance notification:', emailError);
+              // Continue even if email fails
+            }
+          } catch (memberUpdateError: any) {
+            console.error('Error adding member to savings group:', memberUpdateError);
+            
+            // Return partial success - the invitation was updated but adding to group failed
+            if (memberUpdateError.code === 'permission-denied' || 
+                (memberUpdateError.message && memberUpdateError.message.includes('Missing or insufficient permissions'))) {
+              return { 
+                success: true,  // Invitation was updated successfully
+                warning: 'Your response was recorded, but you could not be added to the savings group due to permission settings.',
+                code: 'permission-denied-savings'
+              };
+            }
+            
+            return { 
+              success: true,  // Invitation was updated successfully
+              warning: `Your response was recorded, but you could not be added to the savings group: ${memberUpdateError.message}`,
+            };
           }
         } else {
           console.log('User already a member of the savings group');
         }
       } catch (savingsError: any) {
-        console.error('Error updating savings group:', savingsError);
+        console.error('Error accessing savings group:', savingsError);
+        
+        // Return partial success - the invitation was updated but adding to group failed
+        if (savingsError.code === 'permission-denied' || 
+            (savingsError.message && savingsError.message.includes('Missing or insufficient permissions'))) {
+          return { 
+            success: true,  // Invitation was updated
+            warning: 'Your response was recorded, but there was an issue accessing the savings group due to permissions.',
+            code: 'permission-denied-savings'
+          };
+        }
+        
         return { 
-          success: false, 
-          message: `Error updating savings group: ${savingsError.message}`,
-          error: savingsError
+          success: true,  // Invitation was updated
+          warning: `Your response was recorded, but there was an issue with the savings group: ${savingsError.message}`,
         };
       }
     }
@@ -94,6 +139,17 @@ export async function respondToInvitation(
     return { success: true };
   } catch (error: any) {
     console.error('Error responding to invitation:', error);
+    
+    // Check for Firebase permission errors at the top level
+    if (error.code === 'permission-denied' || 
+        (error.message && error.message.includes('Missing or insufficient permissions'))) {
+      return { 
+        success: false, 
+        message: 'Permission denied. Firebase security rules are preventing this operation.',
+        code: 'permission-denied'
+      };
+    }
+    
     return { 
       success: false, 
       message: `Error responding to invitation: ${error.message}`,

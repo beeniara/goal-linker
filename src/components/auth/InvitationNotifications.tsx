@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -54,23 +55,51 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
       const response = await respondToInvitation(invitationId, userId, accept);
       
       if (response.success) {
-        toast({
-          title: accept ? 'Invitation Accepted' : 'Invitation Declined',
-          description: accept 
-            ? 'You have been added to the savings group' 
-            : 'You have declined the invitation',
-        });
+        // Show success toast, but include warning if present
+        if (response.warning) {
+          toast({
+            title: accept ? 'Invitation Accepted' : 'Invitation Declined',
+            description: response.warning,
+            variant: 'warning',
+          });
+        } else {
+          toast({
+            title: accept ? 'Invitation Accepted' : 'Invitation Declined',
+            description: accept 
+              ? 'You have been added to the savings group' 
+              : 'You have declined the invitation',
+          });
+        }
         
-        // Remove the invitation from the list
+        // Remove the invitation from the list - we do this even with warnings
+        // since the invitation itself was successfully processed
         setInvitations(prevInvitations => 
           prevInvitations.filter(inv => inv.id !== invitationId)
         );
       } else {
-        throw new Error(response.message || 'Failed to process the invitation');
+        // Handle specific error cases
+        if (response.code === 'permission-denied') {
+          setError('Permission denied: You do not have access to respond to this invitation. This may be due to Firebase security rules.');
+          toast({
+            title: 'Permission Error',
+            description: 'You do not have permission to perform this action. Please contact the administrator.',
+            variant: 'destructive',
+          });
+        } else {
+          throw new Error(response.message || 'Failed to process the invitation');
+        }
       }
     } catch (error: any) {
       console.error('Error responding to invitation:', error);
-      setError(`Failed to process your response: ${error.message || 'Unknown error'}. Please try again or refresh the page.`);
+      
+      // Handle common Firebase permission errors
+      if (error.code === 'permission-denied' || 
+          (error.message && error.message.includes('Missing or insufficient permissions'))) {
+        setError('Permission error: Firebase security rules are preventing this operation. Please contact the administrator.');
+      } else {
+        setError(`Failed to process your response: ${error.message || 'Unknown error'}. Please try again or refresh the page.`);
+      }
+      
       toast({
         title: 'Error',
         description: 'Failed to process your response. Please try again or refresh the page.',
