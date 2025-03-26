@@ -1,4 +1,3 @@
-
 # Firebase Setup Guide for TaskFlow
 
 This guide will help you set up the Firebase services needed for the TaskFlow app.
