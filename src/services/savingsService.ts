@@ -1,3 +1,4 @@
+
 import { v4 as uuidv4 } from 'uuid';
 import { doc, setDoc, serverTimestamp, collection, getDocs, query, where, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/firebase/config';
@@ -88,10 +89,12 @@ export async function getUserSavingsGoals(userId: string): Promise<SavingsGoal[]
     
     const querySnapshot = await getDocs(q);
     
-    const goals = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    const goals = querySnapshot.docs.map(doc => {
+      return {
+        id: doc.id,
+        ...doc.data()
+      } as SavingsGoal;
+    });
     
     console.log(`Found ${goals.length} savings goals for user ${userId}`);
     return goals;
@@ -188,7 +191,7 @@ export async function addContribution(
     return {
       id: updatedGoalDoc.id,
       ...updatedGoalDoc.data()
-    };
+    } as SavingsGoal;
   } catch (error) {
     console.error("Error adding contribution:", error);
     console.error("Error details:", JSON.stringify(error, null, 2));
