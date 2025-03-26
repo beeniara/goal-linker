@@ -10,6 +10,8 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface GroupInviteDialogProps {
   open: boolean;
@@ -33,6 +35,7 @@ export const GroupInviteDialog: React.FC<GroupInviteDialogProps> = ({
   userName
 }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
   const form = useForm<z.infer<typeof inviteSchema>>({
     resolver: zodResolver(inviteSchema),
@@ -41,9 +44,20 @@ export const GroupInviteDialog: React.FC<GroupInviteDialogProps> = ({
     }
   });
 
+  // Reset form and error when dialog opens/closes
+  React.useEffect(() => {
+    if (open) {
+      form.reset();
+      setError(null);
+    }
+  }, [open, form]);
+
   const handleInvite = async (values: z.infer<typeof inviteSchema>) => {
     try {
+      setError(null);
       setIsSubmitting(true);
+      
+      console.log('Sending invitation to:', values.email, 'for savings:', savingsId);
       const result = await inviteUserToSavings(
         savingsId,
         savingsTitle,
@@ -59,18 +73,25 @@ export const GroupInviteDialog: React.FC<GroupInviteDialogProps> = ({
         });
         form.reset();
         onOpenChange(false);
+        
+        if (result.warning) {
+          console.warn(result.warning);
+        }
       } else {
+        setError(result.message || 'Failed to send invitation. Please try again.');
         toast({
           title: 'Invitation Failed',
           description: result.message || 'Failed to send invitation. Please try again.',
           variant: 'destructive',
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending invitation:', error);
+      const errorMessage = error.message || 'An error occurred while sending the invitation. Please try again.';
+      setError(errorMessage);
       toast({
         title: 'Error',
-        description: 'An error occurred while sending the invitation. Please try again.',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {
@@ -87,6 +108,15 @@ export const GroupInviteDialog: React.FC<GroupInviteDialogProps> = ({
             Invite someone to join this savings goal. They'll need to accept the invitation to participate.
           </DialogDescription>
         </DialogHeader>
+        
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleInvite)} className="space-y-4">
             <FormField

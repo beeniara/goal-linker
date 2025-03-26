@@ -1,4 +1,3 @@
-
 import { db } from '@/firebase/config';
 import { collection, doc, addDoc, getDocs, query, where, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { sendEmailNotification } from './notificationService';
@@ -53,25 +52,41 @@ export async function inviteUserToSavings(
       createdAt: serverTimestamp()
     };
     
-    const docRef = await addDoc(collection(db, 'savingsInvitations'), invitation);
-    console.log('Invitation created with ID:', docRef.id);
-    
-    // Send email notification (if implemented)
     try {
-      await sendEmailNotification(
-        inviteeEmail,
-        'Savings Group Invitation',
-        `${inviterName} has invited you to join their savings goal "${savingsTitle}". Please log in to view and respond to this invitation.`
-      );
-    } catch (emailError) {
-      console.error('Error sending invitation email:', emailError);
-      // Continue even if email fails
+      const docRef = await addDoc(collection(db, 'savingsInvitations'), invitation);
+      console.log('Invitation created with ID:', docRef.id);
+      
+      // Send email notification (if implemented)
+      try {
+        await sendEmailNotification(
+          inviteeEmail,
+          'Savings Group Invitation',
+          `${inviterName} has invited you to join their savings goal "${savingsTitle}". Please log in to view and respond to this invitation.`
+        );
+      } catch (emailError) {
+        console.error('Error sending invitation email:', emailError);
+        // Continue even if email fails, as the invitation was created successfully
+        return { success: true, invitationId: docRef.id, warning: 'Invitation created but email notification failed' };
+      }
+      
+      return { success: true, invitationId: docRef.id };
+    } catch (firebaseError: any) {
+      console.error('Firebase error creating invitation:', firebaseError);
+      let errorMessage = 'Failed to create invitation. Please check your permissions.';
+      
+      if (firebaseError.code === 'permission-denied') {
+        errorMessage = 'Permission denied. Please ensure Firebase security rules are properly set up.';
+      }
+      
+      return { success: false, message: errorMessage, error: firebaseError };
     }
-    
-    return { success: true, invitationId: docRef.id };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating invitation:', error);
-    throw error;
+    return { 
+      success: false, 
+      message: error.message || 'An unexpected error occurred while creating the invitation.', 
+      error 
+    };
   }
 }
 

@@ -3,6 +3,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { UserPlus } from 'lucide-react';
 import { GroupInviteDialog } from '@/components/savings/GroupInviteDialog';
+import { useToast } from '@/hooks/use-toast';
 
 interface InviteButtonProps {
   savingsId: string;
@@ -20,16 +21,29 @@ export const InviteButton: React.FC<InviteButtonProps> = ({
   isGroupSavings
 }) => {
   const [open, setOpen] = React.useState(false);
+  const { toast } = useToast();
 
   if (!isGroupSavings) {
     return null;
   }
 
+  const handleOpenDialog = () => {
+    if (!userId) {
+      toast({
+        title: "Authentication Required",
+        description: "You must be logged in to invite members.",
+        variant: "destructive"
+      });
+      return;
+    }
+    setOpen(true);
+  };
+
   return (
     <>
       <Button 
         variant="outline" 
-        onClick={() => setOpen(true)}
+        onClick={handleOpenDialog}
         className="flex items-center"
       >
         <UserPlus className="h-4 w-4 mr-2" />
