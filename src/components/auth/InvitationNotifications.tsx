@@ -51,8 +51,10 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
     try {
       setRespondingTo(invitationId);
       setError(null);
+      console.log(`Processing ${accept ? 'acceptance' : 'decline'} for invitation ${invitationId}`);
       
       const response = await respondToInvitation(invitationId, userId, accept);
+      console.log('Response from server:', response);
       
       if (response.success) {
         toast({
@@ -67,6 +69,7 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
           prevInvitations.filter(inv => inv.id !== invitationId)
         );
       } else {
+        console.error('Error in response:', response);
         throw new Error(response.message || 'Failed to process the invitation');
       }
     } catch (error: any) {
