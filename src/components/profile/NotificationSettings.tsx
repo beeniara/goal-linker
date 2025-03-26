@@ -1,10 +1,17 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
+import { InvitationNotifications } from '@/components/auth/InvitationNotifications';
+import { AlertMessageDisplay } from '@/components/alerts/AlertMessageDisplay';
+import { Bell, BellOff } from 'lucide-react';
 
 const NotificationSettings = () => {
+  const { currentUser } = useAuth();
+  const [showInvitations, setShowInvitations] = useState(true);
+
   return (
     <Card>
       <CardHeader>
@@ -14,6 +21,43 @@ const NotificationSettings = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Invitations Section */}
+        <div className="space-y-4 mb-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-medium">Pending Invitations</h3>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setShowInvitations(!showInvitations)}
+              className="flex items-center gap-1"
+            >
+              {showInvitations ? (
+                <>
+                  <BellOff className="h-4 w-4" />
+                  <span>Hide</span>
+                </>
+              ) : (
+                <>
+                  <Bell className="h-4 w-4" />
+                  <span>Show</span>
+                </>
+              )}
+            </Button>
+          </div>
+          
+          {showInvitations && currentUser ? (
+            <div className="border rounded-md p-4">
+              <InvitationNotifications 
+                userEmail={currentUser.email || ''}
+                userId={currentUser.uid}
+              />
+            </div>
+          ) : null}
+        </div>
+        
+        <Separator />
+
+        {/* Email Notifications Section */}
         <div className="space-y-4">
           <div>
             <h3 className="text-lg font-medium">Email Notifications</h3>

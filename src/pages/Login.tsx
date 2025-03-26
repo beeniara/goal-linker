@@ -3,10 +3,10 @@ import React, { useEffect, useState } from 'react';
 import { LoginForm } from '@/components/auth/LoginForm';
 import { Link } from 'react-router-dom';
 import { Toaster } from '@/components/ui/toaster';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
+import { AlertMessageDisplay } from '@/components/alerts/AlertMessageDisplay';
 import { useAuth } from '@/contexts/AuthContext';
 import { InvitationNotifications } from '@/components/auth/InvitationNotifications';
+import { Bell } from 'lucide-react';
 
 const Login = () => {
   const { currentUser, userData } = useAuth();
@@ -36,32 +36,34 @@ const Login = () => {
           </div>
           
           {showInvitations && currentUser && userData && (
-            <InvitationNotifications 
-              userEmail={currentUser.email || ''}
-              userId={currentUser.uid}
-            />
+            <div className="mb-4">
+              <div className="bg-muted p-3 rounded-t-md flex items-center gap-2">
+                <Bell className="h-5 w-5 text-primary" />
+                <h3 className="font-medium">Pending Invitations</h3>
+              </div>
+              <div className="border border-t-0 rounded-b-md p-3">
+                <InvitationNotifications 
+                  userEmail={currentUser.email || ''}
+                  userId={currentUser.uid}
+                />
+              </div>
+            </div>
           )}
           
-          <Alert className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Firebase Index Required</AlertTitle>
-            <AlertDescription>
-              <p className="mb-2">If you see an error about missing Firestore indexes after login, you'll need to create it:</p>
-              <ol className="list-decimal pl-5 text-sm">
-                <li>Click on the error link in the console</li>
-                <li>Sign in to your Firebase console</li>
-                <li>In the form that appears:
-                  <ul className="list-disc pl-5 mt-1">
-                    <li>Field 1: Enter <strong>userId</strong> with <strong>Ascending</strong> order</li>
-                    <li>Field 2: Enter <strong>createdAt</strong> with <strong>Descending</strong> order</li>
-                    <li>Select <strong>Collection</strong> for "Query scopes"</li>
-                  </ul>
-                </li>
-                <li>Click "Create index" and wait a few minutes for it to build</li>
-              </ol>
-              <p className="text-xs mt-2 text-muted-foreground">This is required for sorting reminders by creation date.</p>
-            </AlertDescription>
-          </Alert>
+          <AlertMessageDisplay 
+            type="info" 
+            title="Firebase Index Required"
+            message={`If you see an error about missing Firestore indexes after login, you'll need to create it:
+            1. Click on the error link in the console
+            2. Sign in to your Firebase console
+            3. In the form that appears:
+               - Field 1: Enter userId with Ascending order
+               - Field 2: Enter createdAt with Descending order
+               - Select Collection for "Query scopes"
+            4. Click "Create index" and wait a few minutes for it to build
+
+            This is required for sorting reminders by creation date.`}
+          />
           
           <LoginForm />
         </div>

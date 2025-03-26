@@ -4,16 +4,16 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, AlertTriangle, Info } from 'lucide-react';
 
 interface AlertMessageProps {
-  type: 'error' | 'warning' | 'info';
+  type: 'error' | 'warning' | 'info' | 'success';
   title?: string;
-  message: string | null;
+  message: string | null | React.ReactNode;
   className?: string;
 }
 
 export function AlertMessageDisplay({ type, title, message, className = 'mb-4' }: AlertMessageProps) {
   if (!message) return null;
   
-  let variant: "default" | "destructive" | null = null;
+  let variant: "default" | "destructive" | "warning" | "success" | "info" | null = null;
   let customClasses = className;
   let icon = null;
   let defaultTitle = '';
@@ -25,13 +25,18 @@ export function AlertMessageDisplay({ type, title, message, className = 'mb-4' }
       defaultTitle = 'Error';
       break;
     case 'warning':
-      customClasses += ' border-yellow-500 bg-yellow-50 text-yellow-800';
-      icon = <AlertTriangle className="h-4 w-4 text-yellow-600" />;
+      variant = "warning";
+      icon = <AlertTriangle className="h-4 w-4" />;
       defaultTitle = 'Warning';
       break;
+    case 'success':
+      variant = "success";
+      icon = <AlertCircle className="h-4 w-4" />;
+      defaultTitle = 'Success';
+      break;
     case 'info':
-      customClasses += ' border-blue-500 bg-blue-50 text-blue-800';
-      icon = <Info className="h-4 w-4 text-blue-600" />;
+      variant = "info";
+      icon = <Info className="h-4 w-4" />;
       defaultTitle = 'Info';
       break;
   }
@@ -40,7 +45,17 @@ export function AlertMessageDisplay({ type, title, message, className = 'mb-4' }
     <Alert variant={variant} className={customClasses}>
       {icon}
       <AlertTitle>{title || defaultTitle}</AlertTitle>
-      <AlertDescription>{message}</AlertDescription>
+      <AlertDescription>
+        {typeof message === 'string' 
+          ? message.split('\n').map((line, i) => (
+              <React.Fragment key={i}>
+                {line}
+                {i < message.split('\n').length - 1 && <br />}
+              </React.Fragment>
+            ))
+          : message
+        }
+      </AlertDescription>
     </Alert>
   );
 }

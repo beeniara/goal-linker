@@ -2,10 +2,11 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Check, X, AlertCircle } from 'lucide-react';
+import { Check, X, AlertCircle, Bell, Inbox } from 'lucide-react';
 import { getUserInvitations, respondToInvitation, SavingsInvitation } from '@/services/savingsInvitationService';
 import { useToast } from '@/hooks/use-toast';
 import { AnimatePresence, motion } from 'framer-motion';
+import { AlertMessageDisplay } from '@/components/alerts/AlertMessageDisplay';
 
 interface InvitationNotificationsProps {
   userEmail: string;
@@ -16,16 +17,21 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
   const [invitations, setInvitations] = useState<SavingsInvitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [respondingTo, setRespondingTo] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
     const fetchInvitations = async () => {
       try {
         setLoading(true);
+        setError(null);
+        console.log('Fetching invitations for:', userEmail);
         const userInvitations = await getUserInvitations(userEmail);
+        console.log('Fetched invitations:', userInvitations);
         setInvitations(userInvitations);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error fetching invitations:', error);
+        setError('Failed to load invitations. Please refresh the page.');
         toast({
           title: 'Error',
           description: 'Failed to load invitations. Please refresh the page.',
@@ -57,7 +63,7 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
       setInvitations(prevInvitations => 
         prevInvitations.filter(inv => inv.id !== invitationId)
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error responding to invitation:', error);
       toast({
         title: 'Error',
@@ -69,6 +75,10 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
     }
   };
 
+  if (error) {
+    return <AlertMessageDisplay type="error" message={error} />;
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-4">
@@ -79,12 +89,20 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
   }
 
   if (invitations.length === 0) {
-    return null;
+    return (
+      <div className="flex flex-col items-center justify-center py-6 text-center">
+        <Inbox className="h-12 w-12 text-muted-foreground mb-2" />
+        <h3 className="text-lg font-medium mb-1">No Pending Invitations</h3>
+        <p className="text-sm text-muted-foreground">
+          You don't have any pending invitations at the moment.
+        </p>
+      </div>
+    );
   }
 
   return (
     <AnimatePresence>
-      <div className="space-y-4 my-4">
+      <div className="space-y-4">
         {invitations.map((invitation) => (
           <motion.div
             key={invitation.id}
