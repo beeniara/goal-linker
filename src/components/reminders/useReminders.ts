@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { collection, getDocs, query, where, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, orderBy } from 'firebase/firestore';
 import { db } from '@/firebase/config';
@@ -260,7 +259,6 @@ export const useReminders = (userId: string | undefined) => {
     }));
   };
 
-  // Helper functions for dates and urgency
   const isDueToday = (dueDate?: Date) => {
     if (!dueDate) return false;
     
@@ -317,6 +315,7 @@ export const useReminders = (userId: string | undefined) => {
     error,
     isSubmitting,
     expandedReminders,
+    setExpandedReminders,
     fetchReminders,
     addReminder,
     updateReminder,
