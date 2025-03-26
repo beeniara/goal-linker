@@ -26,7 +26,16 @@ export async function getUserInvitations(userEmail: string): Promise<SavingsInvi
     const invitations: SavingsInvitation[] = [];
     
     querySnapshot.forEach((doc) => {
-      invitations.push({ id: doc.id, ...doc.data() } as SavingsInvitation);
+      // Validate document data before adding to array
+      const docData = doc.data();
+      if (docData && docData.savingsId && docData.inviteeEmail) {
+        invitations.push({ 
+          id: doc.id, 
+          ...docData 
+        } as SavingsInvitation);
+      } else {
+        console.warn('Skipping invalid invitation document:', doc.id);
+      }
     });
     
     console.log(`Found ${invitations.length} pending invitations`);

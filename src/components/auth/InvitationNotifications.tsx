@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Check, X, AlertCircle, Inbox } from 'lucide-react';
@@ -22,42 +22,56 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchInvitations = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        if (!userEmail) {
-          setInvitations([]);
-          return;
-        }
-        
-        console.log('Fetching invitations for:', userEmail);
-        const userInvitations = await getUserInvitations(userEmail);
-        console.log('Fetched invitations:', userInvitations);
-        setInvitations(userInvitations);
-      } catch (error: any) {
-        console.error('Error fetching invitations:', error);
-        setError('Failed to load invitations. Please refresh the page.');
-        toast({
-          title: 'Error',
-          description: 'Failed to load invitations. Please refresh the page.',
-          variant: 'destructive',
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
+  // Use useCallback to prevent unnecessary re-rendering
+  const fetchInvitations = useCallback(async () => {
+    if (!userEmail) {
+      setInvitations([]);
+      setLoading(false);
+      return;
+    }
 
-    if (userEmail) {
-      fetchInvitations();
-    } else {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log('Fetching invitations for:', userEmail);
+      const userInvitations = await getUserInvitations(userEmail);
+      console.log('Fetched invitations:', userInvitations);
+      
+      // Validate invitations data
+      if (Array.isArray(userInvitations)) {
+        setInvitations(userInvitations);
+      } else {
+        console.error('Invalid invitations data format:', userInvitations);
+        setInvitations([]);
+        setError('Received invalid invitation data format');
+      }
+    } catch (error: any) {
+      console.error('Error fetching invitations:', error);
+      setInvitations([]);
+      setError('Failed to load invitations. Please refresh the page.');
+      toast({
+        title: 'Error',
+        description: 'Failed to load invitations. Please refresh the page.',
+        variant: 'destructive',
+      });
+    } finally {
       setLoading(false);
     }
   }, [userEmail, toast]);
 
-  const handleResponse = async (invitationId: string, accept: boolean) => {
+  useEffect(() => {
+    fetchInvitations();
+  }, [fetchInvitations]);
+
+  const handleResponse = async (invitationId: string | undefined, accept: boolean) => {
+    // Validate invitation ID
+    if (!invitationId) {
+      console.error('Invalid invitation ID:', invitationId);
+      setError('Cannot process invitation with missing ID');
+      return;
+    }
+
     try {
       setRespondingTo(invitationId);
       setError(null);
@@ -67,6 +81,11 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
       
       if (!invitation) {
         throw new Error('Invitation not found');
+      }
+      
+      // Ensure valid userId for the API call
+      if (!userId) {
+        throw new Error('User ID is required to respond to invitations');
       }
       
       const response = await respondToInvitation(invitationId, userId, accept);
@@ -139,10 +158,12 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
     }
   };
 
+  // Render error state
   if (error) {
     return <AlertMessageDisplay type="error" message={error} />;
   }
 
+  // Render loading state
   if (loading) {
     return (
       <div className="flex items-center justify-center p-4">
@@ -152,7 +173,8 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
     );
   }
 
-  if (invitations.length === 0) {
+  // Render empty state
+  if (!invitations || invitations.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-6 text-center">
         <Inbox className="h-12 w-12 text-muted-foreground mb-2" />
@@ -164,12 +186,13 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
     );
   }
 
+  // Render invitations
   return (
     <AnimatePresence>
       <div className="space-y-4">
         {invitations.map((invitation) => (
           <motion.div
-            key={invitation.id}
+            key={invitation.id || `invitation-${Math.random()}`}
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, height: 0 }}
@@ -184,7 +207,7 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
                     <AlertTitle className="text-base">Savings Group Invitation</AlertTitle>
                     <AlertDescription>
                       <p className="mt-1">
-                        <span className="font-semibold">{invitation.inviterName || 'Someone'}</span> has invited you to join the savings goal "{invitation.savingsTitle}".
+                        <span className="font-semibold">{invitation.inviterName || 'Someone'}</span> has invited you to join the savings goal "{invitation.savingsTitle || 'Unnamed goal'}".
                       </p>
                     </AlertDescription>
                   </div>
@@ -194,8 +217,8 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
                     size="sm" 
                     variant="outline" 
                     className="flex items-center" 
-                    onClick={() => handleResponse(invitation.id!, false)}
-                    disabled={respondingTo === invitation.id}
+                    onClick={() => handleResponse(invitation.id, false)}
+                    disabled={respondingTo === invitation.id || !invitation.id}
                   >
                     {respondingTo === invitation.id ? (
                       <div className="animate-spin h-4 w-4 mr-1 border-2 border-current border-t-transparent rounded-full" />
@@ -207,8 +230,8 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
                   <Button 
                     size="sm" 
                     className="flex items-center" 
-                    onClick={() => handleResponse(invitation.id!, true)}
-                    disabled={respondingTo === invitation.id}
+                    onClick={() => handleResponse(invitation.id, true)}
+                    disabled={respondingTo === invitation.id || !invitation.id}
                   >
                     {respondingTo === invitation.id ? (
                       <div className="animate-spin h-4 w-4 mr-1 border-2 border-muted border-t-transparent rounded-full" />
