@@ -10,4 +10,5 @@ export interface ReminderItem {
   parentId?: string;
   isMain: boolean;
   createdAt: Date;
+  children?: ReminderItem[]; // Add children array for better hierarchical structure
 }

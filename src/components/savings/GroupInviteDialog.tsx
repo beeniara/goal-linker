@@ -6,6 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { inviteUserToSavings } from '@/services/savingsInvitationService';
 import { useToast } from '@/hooks/use-toast';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
 interface GroupInviteDialogProps {
   open: boolean;
@@ -16,6 +20,10 @@ interface GroupInviteDialogProps {
   userName: string;
 }
 
+const inviteSchema = z.object({
+  email: z.string().email({ message: "Please enter a valid email address" })
+});
+
 export const GroupInviteDialog: React.FC<GroupInviteDialogProps> = ({
   open,
   onOpenChange,
@@ -24,20 +32,16 @@ export const GroupInviteDialog: React.FC<GroupInviteDialogProps> = ({
   userId,
   userName
 }) => {
-  const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
-
-  const handleInvite = async () => {
-    if (!email || !email.includes('@')) {
-      toast({
-        title: 'Invalid Email',
-        description: 'Please enter a valid email address',
-        variant: 'destructive',
-      });
-      return;
+  const form = useForm<z.infer<typeof inviteSchema>>({
+    resolver: zodResolver(inviteSchema),
+    defaultValues: {
+      email: ''
     }
+  });
 
+  const handleInvite = async (values: z.infer<typeof inviteSchema>) => {
     try {
       setIsSubmitting(true);
       const result = await inviteUserToSavings(
@@ -45,15 +49,15 @@ export const GroupInviteDialog: React.FC<GroupInviteDialogProps> = ({
         savingsTitle,
         userId,
         userName,
-        email
+        values.email
       );
 
       if (result.success) {
         toast({
           title: 'Invitation Sent',
-          description: `An invitation has been sent to ${email}`,
+          description: `An invitation has been sent to ${values.email}`,
         });
-        setEmail('');
+        form.reset();
         onOpenChange(false);
       } else {
         toast({
@@ -83,29 +87,36 @@ export const GroupInviteDialog: React.FC<GroupInviteDialogProps> = ({
             Invite someone to join this savings goal. They'll need to accept the invitation to participate.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="email" className="text-right">
-              Email
-            </Label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="friend@example.com"
-              className="col-span-3"
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleInvite)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      type="email"
+                      placeholder="friend@example.com"
+                      disabled={isSubmitting}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleInvite} disabled={isSubmitting}>
-            {isSubmitting ? 'Sending...' : 'Send Invitation'}
-          </Button>
-        </DialogFooter>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Sending...' : 'Send Invitation'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

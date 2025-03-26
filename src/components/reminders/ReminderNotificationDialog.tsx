@@ -5,8 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { createReminderNotification, updateReminderNotificationFrequency, deleteReminderNotification } from '@/services/notificationService';
 import { useToast } from '@/hooks/use-toast';
+import { Bell, Clock, AlertTriangle, HelpCircle } from 'lucide-react';
 
 interface ReminderNotificationDialogProps {
   open: boolean;
@@ -80,16 +82,33 @@ export const ReminderNotificationDialog: React.FC<ReminderNotificationDialogProp
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Reminder Notifications</DialogTitle>
+          <div className="flex items-center gap-2">
+            <Bell className="h-5 w-5 text-primary" />
+            <DialogTitle>Reminder Notifications</DialogTitle>
+          </div>
           <DialogDescription>
-            Configure email notifications for this reminder.
+            Configure email notifications for "{reminderTitle}".
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="flex items-center justify-between">
-            <Label htmlFor="notification-toggle" className="font-medium">
-              Email Notifications
-            </Label>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="notification-toggle" className="font-medium">
+                Email Notifications
+              </Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="max-w-xs">
+                      When enabled, you'll receive email notifications based on your selected frequency.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
             <Switch
               id="notification-toggle"
               checked={isEnabled}
@@ -99,13 +118,16 @@ export const ReminderNotificationDialog: React.FC<ReminderNotificationDialogProp
           
           {isEnabled && (
             <div className="grid gap-2">
-              <Label htmlFor="frequency">Notification Frequency</Label>
+              <Label htmlFor="frequency" className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                Notification Frequency
+              </Label>
               <Select
                 value={frequency}
                 onValueChange={(value) => setFrequency(value as 'once' | '12h' | '24h')}
                 disabled={!isEnabled}
               >
-                <SelectTrigger id="frequency">
+                <SelectTrigger id="frequency" className="w-full">
                   <SelectValue placeholder="Select frequency" />
                 </SelectTrigger>
                 <SelectContent>
@@ -114,18 +136,22 @@ export const ReminderNotificationDialog: React.FC<ReminderNotificationDialogProp
                   <SelectItem value="24h">24 hours before due</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-sm text-muted-foreground mt-1">
-                {frequency === 'once'
-                  ? 'You will be notified once when the reminder is due.'
-                  : frequency === '12h'
-                    ? 'You will be notified 12 hours before the reminder is due.'
-                    : 'You will be notified 24 hours before the reminder is due.'}
-              </p>
+              
+              <div className="mt-2 p-3 bg-muted rounded-md border text-sm flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" /> 
+                <div>
+                  {frequency === 'once'
+                    ? 'You will receive one email notification when the reminder is due.'
+                    : frequency === '12h'
+                      ? 'You will receive an email notification 12 hours before the reminder is due.'
+                      : 'You will receive an email notification 24 hours before the reminder is due.'}
+                </div>
+              </div>
             </div>
           )}
         </div>
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={isSubmitting}>
