@@ -78,12 +78,20 @@ export const GroupInviteDialog: React.FC<GroupInviteDialogProps> = ({
           console.warn(result.warning);
         }
       } else {
+        // Set the specific error message received from the service
         setError(result.message || 'Failed to send invitation. Please try again.');
+        
+        // Show a toast with more details for the user
         toast({
           title: 'Invitation Failed',
           description: result.message || 'Failed to send invitation. Please try again.',
           variant: 'destructive',
         });
+        
+        // If it's a permissions issue, give more helpful information
+        if (result.message?.includes('Missing or insufficient permissions')) {
+          setError('You don\'t have permission to send invitations. Please contact your administrator or check the Firebase security rules.');
+        }
       }
     } catch (error: any) {
       console.error('Error sending invitation:', error);

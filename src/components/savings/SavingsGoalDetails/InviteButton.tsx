@@ -36,6 +36,17 @@ export const InviteButton: React.FC<InviteButtonProps> = ({
       });
       return;
     }
+    
+    // Check if we have all the necessary information before opening the dialog
+    if (!savingsId) {
+      toast({
+        title: "Missing Information",
+        description: "Savings information is incomplete. Please refresh the page and try again.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     setOpen(true);
   };
 

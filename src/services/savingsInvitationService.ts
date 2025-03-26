@@ -1,3 +1,4 @@
+
 import { db } from '@/firebase/config';
 import { collection, doc, addDoc, getDocs, query, where, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { sendEmailNotification } from './notificationService';
@@ -72,10 +73,12 @@ export async function inviteUserToSavings(
       return { success: true, invitationId: docRef.id };
     } catch (firebaseError: any) {
       console.error('Firebase error creating invitation:', firebaseError);
-      let errorMessage = 'Failed to create invitation. Please check your permissions.';
+      let errorMessage = 'Failed to create invitation.';
       
       if (firebaseError.code === 'permission-denied') {
-        errorMessage = 'Permission denied. Please ensure Firebase security rules are properly set up.';
+        errorMessage = 'Permission denied. Please check with the administrator to ensure your account has the proper permissions.';
+      } else if (firebaseError.message && firebaseError.message.includes('Missing or insufficient permissions')) {
+        errorMessage = 'Missing or insufficient permissions. Verify that Firebase security rules allow this operation.';
       }
       
       return { success: false, message: errorMessage, error: firebaseError };
