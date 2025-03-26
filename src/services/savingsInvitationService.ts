@@ -1,6 +1,5 @@
-
 import { db } from '@/firebase/config';
-import { collection, doc, addDoc, getDocs, query, where, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, addDoc, getDocs, query, where, updateDoc, deleteDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { sendEmailNotification } from './notificationService';
 
 export type InvitationStatus = 'pending' | 'accepted' | 'declined';
@@ -191,7 +190,15 @@ export async function respondToInvitation(
   try {
     console.log(`User ${userId} ${accept ? 'accepted' : 'declined'} invitation ${invitationId}`);
     
+    // Get the invitation directly using the document reference first
     const invitationRef = doc(db, 'savingsInvitations', invitationId);
+    const invitationDoc = await getDoc(invitationRef);
+    
+    if (!invitationDoc.exists()) {
+      throw new Error('Invitation not found');
+    }
+    
+    const invitation = { id: invitationDoc.id, ...invitationDoc.data() } as SavingsInvitation;
     
     // Update invitation status
     await updateDoc(invitationRef, {
@@ -200,49 +207,39 @@ export async function respondToInvitation(
     });
     
     if (accept) {
-      // Get the invitation details
-      const invitationsRef = collection(db, 'savingsInvitations');
-      const q = query(invitationsRef, where('__name__', '==', invitationId));
-      const querySnapshot = await getDocs(q);
+      // Add user to savings group members
+      const savingsRef = doc(db, 'savings', invitation.savingsId);
+      const savingsDoc = await getDoc(savingsRef);
       
-      if (!querySnapshot.empty) {
-        const invitation = { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() } as SavingsInvitation;
+      if (!savingsDoc.exists()) {
+        throw new Error('Savings goal not found');
+      }
+      
+      const savingsData = savingsDoc.data();
+      const members = savingsData.members || [];
+      
+      if (!members.includes(userId)) {
+        members.push(userId);
+        await updateDoc(savingsRef, { members });
         
-        // Add user to savings group members
-        const savingsRef = doc(db, 'savings', invitation.savingsId);
-        const savingsQ = query(collection(db, 'savings'), where('__name__', '==', invitation.savingsId));
-        const savingsSnapshot = await getDocs(savingsQ);
-        
-        if (!savingsSnapshot.empty) {
-          const savingsData = savingsSnapshot.docs[0].data();
-          const members = savingsData.members || [];
-          
-          if (!members.includes(userId)) {
-            members.push(userId);
-            await updateDoc(savingsRef, { members });
-            
-            // Notify the inviter that the invitation was accepted
-            try {
-              const inviterEmail = invitation.inviterId; // This should be the inviter's email or you need to fetch it
-              await sendEmailNotification(
-                inviterEmail,
-                'Savings Group Invitation Accepted',
-                `Your invitation to join "${invitation.savingsTitle}" has been accepted.`
-              );
-            } catch (emailError) {
-              console.error('Error sending acceptance notification:', emailError);
-              // Continue even if email fails
-            }
-          }
+        // Notify the inviter that the invitation was accepted
+        try {
+          const inviterEmail = invitation.inviterId; // This should be the inviter's email or you need to fetch it
+          await sendEmailNotification(
+            inviterEmail,
+            'Savings Group Invitation Accepted',
+            `Your invitation to join "${invitation.savingsTitle}" has been accepted.`
+          );
+        } catch (emailError) {
+          console.error('Error sending acceptance notification:', emailError);
+          // Continue even if email fails
         }
       }
-    } else {
-      // If declined, we just update the status but don't need to do anything else
     }
     
     return { success: true };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error responding to invitation:', error);
-    throw error;
+    throw new Error(`Error responding to invitation: ${error.message}`);
   }
 }

@@ -50,6 +50,8 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
   const handleResponse = async (invitationId: string, accept: boolean) => {
     try {
       setRespondingTo(invitationId);
+      setError(null);
+      
       await respondToInvitation(invitationId, userId, accept);
       
       toast({
@@ -65,9 +67,10 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
       );
     } catch (error: any) {
       console.error('Error responding to invitation:', error);
+      setError(`Failed to process your response: ${error.message || 'Unknown error'}. Please try again or refresh the page.`);
       toast({
         title: 'Error',
-        description: 'Failed to process your response. Please try again.',
+        description: 'Failed to process your response. Please try again or refresh the page.',
         variant: 'destructive',
       });
     } finally {
