@@ -60,7 +60,7 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
           toast({
             title: accept ? 'Invitation Accepted' : 'Invitation Declined',
             description: response.warning,
-            variant: 'warning',
+            variant: 'default',
           });
         } else {
           toast({

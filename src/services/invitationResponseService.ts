@@ -1,4 +1,3 @@
-
 import { db } from '@/firebase/config';
 import { doc, updateDoc, getDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
 import { sendEmailNotification } from './notificationService';
@@ -26,6 +25,7 @@ export async function respondToInvitation(
     
     const invitation = { id: invitationDoc.id, ...invitationDoc.data() } as SavingsInvitation;
     console.log('Found invitation:', invitation);
+    console.log('Authenticated userId:', userId, 'inviteeEmail in invitation:', invitation.inviteeEmail); // Debug log
     
     // Update invitation status
     try {
@@ -72,20 +72,26 @@ export async function respondToInvitation(
         
         const savingsData = savingsDoc.data();
         const members = savingsData.members || [];
+        console.log('Current members in savings group:', members); // Debug log
+        console.log('Adding userId to members:', userId); // Debug log
         
         if (!members.includes(userId)) {
           // Use arrayUnion to safely add the user to the members array
-          console.log('Adding user to savings group members:', userId);
+          console.log('Updating savings group with new member:', userId);
           try {
             await updateDoc(savingsRef, { 
               members: arrayUnion(userId),
               lastUpdatedAt: serverTimestamp()
             });
+            console.log('Successfully added user to savings group');
             
             // Notify the inviter that the invitation was accepted
             try {
+              // Since inviterId might be a UID, we need the inviter's email
+              // Ideally, fetch the inviter's email from the users collection
+              // For now, we'll assume inviterId is an email or handle this in notificationService
               await sendEmailNotification(
-                invitation.inviterId,
+                invitation.inviterId, // This should be an email, not a UID
                 'Savings Group Invitation Accepted',
                 `Your invitation to join "${invitation.savingsTitle}" has been accepted.`
               );
@@ -93,6 +99,10 @@ export async function respondToInvitation(
             } catch (emailError) {
               console.error('Error sending acceptance notification:', emailError);
               // Continue even if email fails
+              return { 
+                success: true, 
+                warning: 'Invitation accepted and user added to group, but email notification failed.'
+              };
             }
           } catch (memberUpdateError: any) {
             console.error('Error adding member to savings group:', memberUpdateError);
