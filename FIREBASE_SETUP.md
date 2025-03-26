@@ -128,9 +128,8 @@ service cloud.firestore {
 
     // Notifications collection rules
     match /notifications/{notificationId} {
-      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
       allow create: if request.auth != null;
-      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
 
     // Admin rules (optional - only if you implement admin features)
