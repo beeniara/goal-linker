@@ -68,19 +68,21 @@ service cloud.firestore {
     
     // Savings Invitations collection rules
     match /savingsInvitations/{invitationId} {
-      // The creator of the invitation can read and modify
-      allow read, update, delete: if request.auth != null && resource.data.inviterId == request.auth.uid;
+      // Allow authenticated users to create invitations
+      allow create: if request.auth != null;
       
-      // The invitee can read and respond to invitations sent to their email
-      allow read: if request.auth != null && resource.data.inviteeEmail == request.auth.token.email;
+      // The creator of the invitation can read, update and delete
+      allow read, update, delete: if request.auth != null && 
+                                  resource.data.inviterId == request.auth.uid;
+      
+      // The invitee can read invitations sent to their email
+      allow read: if request.auth != null && 
+                 resource.data.inviteeEmail == request.auth.token.email;
       
       // The invitee can update the status when accepting/declining
       allow update: if request.auth != null && 
-                       resource.data.inviteeEmail == request.auth.token.email &&
-                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'inviteeId']);
-      
-      // Anyone can create invitations (but they need to set proper user IDs)
-      allow create: if request.auth != null && request.resource.data.inviterId == request.auth.uid;
+                   resource.data.inviteeEmail == request.auth.token.email &&
+                   request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'inviteeId']);
     }
     
     // Reminders collection rules

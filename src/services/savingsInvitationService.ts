@@ -115,9 +115,9 @@ export async function inviteUserToSavings(
       let errorMessage = 'Failed to create invitation.';
       
       if (firebaseError.code === 'permission-denied') {
-        errorMessage = 'Permission denied. You do not have access to create invitations. Please check with the administrator to ensure your account has the proper permissions.';
+        errorMessage = 'Permission denied. Please check your Firebase security rules. Make sure rules for the savingsInvitations collection allow authenticated users to create documents.';
       } else if (firebaseError.message && firebaseError.message.includes('Missing or insufficient permissions')) {
-        errorMessage = 'Missing or insufficient permissions. Verify that Firebase security rules allow invitation creation for your user.';
+        errorMessage = 'Missing or insufficient permissions. Please update your Firestore security rules to allow creating invitations.';
       } else if (firebaseError.code) {
         errorMessage = `Error (${firebaseError.code}): ${firebaseError.message || 'Unknown error'}`;
       }
