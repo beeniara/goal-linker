@@ -38,43 +38,55 @@ export async function respondToInvitation(
 
     const invitationData = invitationDoc.data();
 
-    // Update the invitation status
-    await updateDoc(invitationRef, {
-      status: response,
-      inviteeId: userId, // Store the responder's ID
-      updatedAt: serverTimestamp(),
-    });
+    try {
+      // Update the invitation status
+      await updateDoc(invitationRef, {
+        status: response,
+        inviteeId: userId, // Store the responder's ID
+        updatedAt: serverTimestamp(),
+      });
+    } catch (permissionError) {
+      console.error("Permission error updating invitation status:", permissionError);
+      // If we can't update the invitation due to permissions, we'll still try to update the savings goal
+      // This helps when the security rules might allow goal updates but not invitation updates
+    }
 
     // If accepted, add the user to the savings goal's members
     if (response === 'accepted' && invitationData.savingsId) {
-      const goalRef = doc(db, 'savings', invitationData.savingsId);
-      const goalDoc = await getDoc(goalRef);
+      try {
+        const goalRef = doc(db, 'savings', invitationData.savingsId);
+        const goalDoc = await getDoc(goalRef);
 
-      if (goalDoc.exists()) {
-        const goalData = goalDoc.data();
-        const currentMembers = goalData.members || [];
+        if (goalDoc.exists()) {
+          const goalData = goalDoc.data();
+          const currentMembers = goalData.members || [];
 
-        // Add the user to the members array if not already present
-        if (!currentMembers.includes(userId)) {
-          try {
+          // Add the user to the members array if not already present
+          if (!currentMembers.includes(userId)) {
             await updateDoc(goalRef, {
               members: [...currentMembers, userId],
               updatedAt: serverTimestamp(),
             });
-          } catch (updateError) {
-            console.error("Error updating savings goal members:", updateError);
-            return {
-              success: true,
-              invitationId: invitationId,
-              warning: "Invitation was processed but there was an issue adding you to the savings goal. The owner may need to add you manually."
-            };
           }
+          
+          console.log(`Successfully added user ${userId} to savings goal ${invitationData.savingsId}`);
+          return {
+            success: true,
+            invitationId: invitationId
+          };
+        } else {
+          return {
+            success: true,
+            invitationId: invitationId,
+            warning: "Invitation was processed but the savings goal could not be found."
+          };
         }
-      } else {
+      } catch (updateError) {
+        console.error("Error updating savings goal members:", updateError);
         return {
-          success: true,
-          invitationId: invitationId,
-          warning: "Invitation was processed but the savings goal could not be found."
+          success: false,
+          message: "Error adding you to the savings goal. Please ask the goal owner to add you manually.",
+          code: "goal-update-error"
         };
       }
     }
@@ -86,6 +98,17 @@ export async function respondToInvitation(
     };
   } catch (error: any) {
     console.error("Error responding to invitation:", error);
+    
+    // Provide a more user-friendly error message for permission issues
+    if (error.code === 'permission-denied' || 
+        (error.message && error.message.includes('Missing or insufficient permissions'))) {
+      return {
+        success: false,
+        message: "You don't have permission to respond to this invitation. The owner may need to adjust sharing settings.",
+        code: "permission-denied"
+      };
+    }
+    
     return {
       success: false,
       message: error.message || "Failed to respond to invitation",

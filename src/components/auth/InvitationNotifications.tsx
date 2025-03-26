@@ -100,52 +100,68 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
         prevInvitations.filter(inv => inv.id !== invitationId)
       );
       
-      await respondToInvitation(invitationId, userId, accept ? 'accepted' : 'declined');
+      const response = await respondToInvitation(invitationId, userId, accept ? 'accepted' : 'declined');
       
-      toast({
-        title: accept ? 'Invitation Accepted' : 'Invitation Declined',
-        description: accept 
-          ? `You have been added to the savings goal "${invitation.savingsTitle}"` 
-          : 'You have declined the invitation',
-        variant: 'default',
-      });
-      
-      // If accepted, navigate to the savings page
-      if (accept && invitation) {
-        navigate('/savings', { 
-          state: { 
-            successMessage: `You have been added to the savings goal "${invitation.savingsTitle}"`,
-            savingsId: invitation.savingsId
-          }
+      if (response.success) {
+        toast({
+          title: accept ? 'Invitation Accepted' : 'Invitation Declined',
+          description: accept 
+            ? `You have been added to the savings goal "${invitation.savingsTitle}"` 
+            : 'You have declined the invitation',
+          variant: 'default',
+        });
+        
+        // If accepted, navigate to the savings page
+        if (accept && invitation) {
+          navigate('/savings', { 
+            state: { 
+              successMessage: `You have been added to the savings goal "${invitation.savingsTitle}"`,
+              savingsId: invitation.savingsId
+            }
+          });
+        }
+      } else if (response.warning) {
+        // Show a toast with the warning but don't treat as an error
+        toast({
+          title: accept ? 'Invitation Accepted' : 'Invitation Declined',
+          description: response.warning,
+          variant: 'default',
+        });
+      } else {
+        // Handle error, but don't put invitation back in the list
+        // This prevents the user from repeatedly trying to respond to an invitation they don't have permission for
+        console.error('Error response:', response);
+        toast({
+          title: 'Error',
+          description: response.message || 'Failed to process your response. Please try again.',
+          variant: 'destructive',
         });
       }
-      
     } catch (error: any) {
       console.error('Error responding to invitation:', error);
       
-      // Add the invitation back to the list since the operation failed
-      const failedInvitation = invitations.find(inv => inv.id === invitationId);
-      if (failedInvitation) {
-        setInvitations(prev => [...prev, failedInvitation]);
+      // Don't add the invitation back for permission errors
+      if (error.code !== 'permission-denied' && 
+          !(error.message && error.message.includes('Missing or insufficient permissions'))) {
+        // Add the invitation back to the list only for non-permission errors
+        const failedInvitation = invitations.find(inv => inv.id === invitationId);
+        if (failedInvitation) {
+          setInvitations(prev => [...prev, failedInvitation]);
+        }
       }
       
       // Handle common Firebase permission errors with a user-friendly message
       if (error.code === 'permission-denied' || 
           (error.message && error.message.includes('Missing or insufficient permissions'))) {
         toast({
-          title: 'Response Recorded',
-          description: 'Your response was recorded, but you may need to ask the group creator to add you manually due to permission settings.',
-          variant: 'default',
+          title: 'Permission Error',
+          description: 'You don\'t have permission to respond to this invitation. The goal owner may need to add you manually.',
+          variant: 'destructive',
         });
-        
-        // Still remove the invitation since the response was recorded
-        setInvitations(prevInvitations => 
-          prevInvitations.filter(inv => inv.id !== invitationId)
-        );
       } else {
         toast({
           title: 'Error',
-          description: 'Failed to process your response. Please try again.',
+          description: error.message || 'Failed to process your response. Please try again.',
           variant: 'destructive',
         });
       }

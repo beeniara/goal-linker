@@ -1,4 +1,3 @@
-
 # Firebase Setup Guide for TaskFlow
 
 This guide will help you set up the Firebase services needed for the TaskFlow app.
@@ -67,26 +66,29 @@ service cloud.firestore {
                               resource.data.members.hasAny([request.auth.uid]));
     }
     
-    // Savings Invitations collection rules
+    // Savings Invitations collection rules - UPDATED for better permissions
     match /savingsInvitations/{invitationId} {
       // Allow authenticated users to create invitations
       allow create: if request.auth != null;
       
-      // Allow any authenticated user to query invitations (for checking existing ones)
+      // Allow any authenticated user to query invitations
       allow list: if request.auth != null;
       
       // The creator of the invitation can read, update and delete
       allow read, update, delete: if request.auth != null && 
-                                  resource.data.inviterId == request.auth.uid;
+                                   resource.data.inviterId == request.auth.uid;
       
       // The invitee can read invitations sent to their email
       allow read: if request.auth != null && 
-                 resource.data.inviteeEmail == request.auth.token.email;
+                  resource.data.inviteeEmail == request.auth.token.email;
       
       // The invitee can update the status when accepting/declining
       allow update: if request.auth != null && 
                    resource.data.inviteeEmail == request.auth.token.email &&
                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'inviteeId', 'updatedAt']);
+                   
+      // Allow reading invitations for any authenticated user (needed for querying)
+      allow get: if request.auth != null;
     }
     
     // Reminders collection rules
