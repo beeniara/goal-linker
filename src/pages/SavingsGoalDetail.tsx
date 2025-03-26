@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,7 +17,31 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from '@/components/ui/form';
-import { PiggyBank, ArrowLeft, Calendar, User, DollarSign, Clock, Plus } from 'lucide-react';
+import { 
+  PiggyBank, 
+  ArrowLeft, 
+  Calendar, 
+  User, 
+  DollarSign, 
+  Clock, 
+  Plus, 
+  Car,
+  CarFront,
+  Bike,
+  Home,
+  Laptop,
+  Smartphone,
+  Plane,
+  ShoppingBag,
+  HelpCircle
+} from 'lucide-react';
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
@@ -32,6 +57,8 @@ const contributionFormSchema = z.object({
 
 type ContributionFormValues = z.infer<typeof contributionFormSchema>;
 
+type TimeFrame = 'weeks' | 'months' | 'years';
+
 const SavingsGoalDetail = () => {
   const { id } = useParams<{ id: string }>();
   const { currentUser } = useAuth();
@@ -41,6 +68,8 @@ const SavingsGoalDetail = () => {
   const [loading, setLoading] = useState(true);
   const [contributionLoading, setContributionLoading] = useState(false);
   const [showContributionForm, setShowContributionForm] = useState(false);
+  const [timeFrame, setTimeFrame] = useState<TimeFrame>('weeks');
+  const [username, setUsername] = useState<string>('');
 
   const form = useForm<ContributionFormValues>({
     resolver: zodResolver(contributionFormSchema),
@@ -61,6 +90,8 @@ const SavingsGoalDetail = () => {
         const goalData = await getSavingsGoalById(id);
         if (goalData) {
           setSavingsGoal(goalData);
+          // Set username from currentUser
+          setUsername(currentUser.displayName || currentUser.email || 'User');
         } else {
           toast({
             title: "Error",
@@ -149,6 +180,52 @@ const SavingsGoalDetail = () => {
     }
   };
 
+  const getGoalIcon = () => {
+    if (!savingsGoal?.title) return <PiggyBank className="h-8 w-8 text-primary" />;
+    
+    const title = savingsGoal.title.toLowerCase();
+    
+    if (title.includes('car')) {
+      return <Car className="h-8 w-8 text-primary" />;
+    } else if (title.includes('auto') || title.includes('vehicle')) {
+      return <CarFront className="h-8 w-8 text-primary" />;
+    } else if (title.includes('bike') || title.includes('bicycle')) {
+      return <Bike className="h-8 w-8 text-primary" />;
+    } else if (title.includes('house') || title.includes('home')) {
+      return <Home className="h-8 w-8 text-primary" />;
+    } else if (title.includes('laptop') || title.includes('computer')) {
+      return <Laptop className="h-8 w-8 text-primary" />;
+    } else if (title.includes('phone') || title.includes('mobile')) {
+      return <Smartphone className="h-8 w-8 text-primary" />;
+    } else if (title.includes('vacation') || title.includes('travel') || title.includes('trip')) {
+      return <Plane className="h-8 w-8 text-primary" />;
+    } else if (title.includes('shopping')) {
+      return <ShoppingBag className="h-8 w-8 text-primary" />;
+    } else {
+      return <PiggyBank className="h-8 w-8 text-primary" />;
+    }
+  };
+
+  const calculateTimeRemaining = () => {
+    if (!savingsGoal) return { value: 0, unit: 'weeks' as TimeFrame };
+    
+    const amountLeft = savingsGoal.target - savingsGoal.current;
+    if (amountLeft <= 0) return { value: 0, unit: timeFrame };
+    
+    const weeksLeft = Math.ceil(amountLeft / savingsGoal.contributionAmount);
+    
+    switch (timeFrame) {
+      case 'weeks':
+        return { value: weeksLeft, unit: 'weeks' };
+      case 'months':
+        return { value: Math.ceil(weeksLeft / 4.33), unit: 'months' };
+      case 'years':
+        return { value: Math.ceil(weeksLeft / 52), unit: 'years' };
+      default:
+        return { value: weeksLeft, unit: 'weeks' };
+    }
+  };
+
   if (loading) {
     return (
       <div className="container max-w-4xl mx-auto p-6 space-y-6 animate-pulse">
@@ -175,6 +252,8 @@ const SavingsGoalDetail = () => {
     );
   }
 
+  const timeRemaining = calculateTimeRemaining();
+
   return (
     <div className="container max-w-4xl mx-auto p-6 space-y-6">
       <Button variant="ghost" asChild className="mb-4 px-0">
@@ -187,9 +266,14 @@ const SavingsGoalDetail = () => {
       <Card>
         <CardHeader>
           <div className="flex justify-between items-start">
-            <div>
-              <CardTitle className="text-2xl font-bold">{savingsGoal.title}</CardTitle>
-              <CardDescription>{savingsGoal.description}</CardDescription>
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-full">
+                {getGoalIcon()}
+              </div>
+              <div>
+                <CardTitle className="text-2xl font-bold">{savingsGoal.title}</CardTitle>
+                <CardDescription>{savingsGoal.description}</CardDescription>
+              </div>
             </div>
             <Button 
               variant={savingsGoal.completed ? "outline" : "default"} 
@@ -213,7 +297,30 @@ const SavingsGoalDetail = () => {
               value={calculateProgress()} 
               className="h-4" 
             />
-            <div className="text-sm text-right text-muted-foreground">
+            <div className="flex justify-between items-center">
+              <div className="text-sm text-muted-foreground">
+                Estimated time remaining:
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-sm">
+                  {timeRemaining.value} {timeRemaining.unit}
+                </span>
+                <Select
+                  value={timeFrame}
+                  onValueChange={(value) => setTimeFrame(value as TimeFrame)}
+                >
+                  <SelectTrigger className="h-8 w-32">
+                    <SelectValue placeholder="Time unit" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="weeks">Weeks</SelectItem>
+                    <SelectItem value="months">Months</SelectItem>
+                    <SelectItem value="years">Years</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="text-sm text-right">
               {calculateProgress().toFixed(1)}% Complete
             </div>
           </div>
@@ -304,11 +411,17 @@ const SavingsGoalDetail = () => {
       <Card>
         <CardHeader>
           <CardTitle>Contribution History</CardTitle>
-          <CardDescription>
-            {savingsGoal.contributions?.length
-              ? `${savingsGoal.contributions.length} contribution${savingsGoal.contributions.length !== 1 ? 's' : ''} so far`
-              : "No contributions yet"}
-          </CardDescription>
+          <div className="flex flex-col">
+            <CardDescription>
+              {savingsGoal.contributions?.length
+                ? `${savingsGoal.contributions.length} contribution${savingsGoal.contributions.length !== 1 ? 's' : ''} so far`
+                : "No contributions yet"}
+            </CardDescription>
+            <div className="mt-1 flex items-center text-sm text-muted-foreground">
+              <User className="h-3.5 w-3.5 mr-1" />
+              <span>{username}</span>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {(!savingsGoal.contributions || savingsGoal.contributions.length === 0) ? (
