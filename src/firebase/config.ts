@@ -1,5 +1,5 @@
 
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore, enableIndexedDbPersistence } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
@@ -37,8 +37,13 @@ if (!firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY") {
   console.log("Firebase configuration is valid.");
 }
 
-// Initialize Firebase app instance with configuration
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase only if it hasn't been initialized already
+let app;
+if (!getApps().length) {
+  app = initializeApp(firebaseConfig);
+} else {
+  app = getApps()[0]; // Use existing app if already initialized
+}
 
 // Initialize Firebase services
 export const auth = getAuth(app); // Authentication service
