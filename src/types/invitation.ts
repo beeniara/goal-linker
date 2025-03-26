@@ -18,6 +18,7 @@ export interface SavingsInvitation {
 export interface InvitationResponse {
   success: boolean;
   invitationId?: string;
+  savingsId?: string;
   message?: string;
   warning?: string;
   code?: string;

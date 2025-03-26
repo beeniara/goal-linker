@@ -125,30 +125,36 @@ export default function Savings() {
         console.log('Fetched personal goals:', financialData);
         setFinancialGoals(financialData);
         
-        // Fetch shared goals (where user is a member but not the creator)
-        console.log('Fetching shared goals where user is a member:', currentUser.uid);
-        const sharedQuery = query(
+        // Fetch shared goals - goals where user is a member
+        console.log('Fetching shared goals for user:', currentUser.uid);
+        const sharedGoalMemberQuery = query(
           collection(db, 'savings'),
           where('members', 'array-contains', currentUser.uid)
         );
         
-        const sharedSnapshot = await getDocs(sharedQuery);
-        const sharedData = sharedSnapshot.docs
-          .map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          })) as SavingsGoal[];
-          
-        console.log('Fetched raw shared goals:', sharedData);
+        const sharedSnapshot = await getDocs(sharedGoalMemberQuery);
+        const allSharedGoals = sharedSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as SavingsGoal[];
         
-        // Only include goals where the user is not the creator
-        const filteredSharedGoals = sharedData.filter(goal => goal.userId !== currentUser.uid);
+        console.log('Fetched all shared goals:', allSharedGoals);
+        
+        // Only include goals where the user is not the creator (true shared goals)
+        const filteredSharedGoals = allSharedGoals.filter(goal => goal.userId !== currentUser.uid);
         console.log('Filtered shared goals (excluding user as creator):', filteredSharedGoals);
         setSharedGoals(filteredSharedGoals);
         
-        // Check if shared tab should be active (e.g., if we just accepted an invitation)
-        if (location.state?.savingsId && filteredSharedGoals.length > 0) {
-          setActiveTab("shared");
+        // If specific savingsId provided in location state, check if it exists in shared goals
+        if (location.state?.savingsId) {
+          const targetGoalId = location.state.savingsId;
+          console.log('Looking for specific goal in shared goals:', targetGoalId);
+          
+          // Force set to shared tab if we have the target goal ID
+          if (filteredSharedGoals.some(goal => goal.id === targetGoalId)) {
+            console.log('Target goal found in shared goals, switching to shared tab');
+            setActiveTab("shared");
+          }
         }
         
         // Fetch support strategies

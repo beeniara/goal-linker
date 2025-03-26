@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useCallback } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -111,12 +110,13 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
           variant: 'default',
         });
         
-        // If accepted, navigate to the savings page
+        // If accepted, navigate to the savings page with the savingsId
         if (accept && invitation) {
+          console.log("Navigating to savings page with ID:", response.savingsId || invitation.savingsId);
           navigate('/savings', { 
             state: { 
               successMessage: `You have been added to the savings goal "${invitation.savingsTitle}"`,
-              savingsId: invitation.savingsId
+              savingsId: response.savingsId || invitation.savingsId
             }
           });
         }

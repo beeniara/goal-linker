@@ -37,6 +37,7 @@ export async function respondToInvitation(
     }
 
     const invitationData = invitationDoc.data();
+    console.log("Retrieved invitation data:", invitationData);
 
     try {
       // Update the invitation status
@@ -45,6 +46,7 @@ export async function respondToInvitation(
         inviteeId: userId, // Store the responder's ID
         updatedAt: serverTimestamp(),
       });
+      console.log(`Updated invitation ${invitationId} status to ${response}`);
     } catch (permissionError) {
       console.error("Permission error updating invitation status:", permissionError);
       // If we can't update the invitation due to permissions, we'll still try to update the savings goal
@@ -54,27 +56,38 @@ export async function respondToInvitation(
     // If accepted, add the user to the savings goal's members
     if (response === 'accepted' && invitationData.savingsId) {
       try {
-        const goalRef = doc(db, 'savings', invitationData.savingsId);
+        const savingsId = invitationData.savingsId;
+        console.log(`Attempting to add user ${userId} to savings goal ${savingsId}`);
+        
+        const goalRef = doc(db, 'savings', savingsId);
         const goalDoc = await getDoc(goalRef);
 
         if (goalDoc.exists()) {
           const goalData = goalDoc.data();
-          const currentMembers = goalData.members || [];
-
+          console.log(`Retrieved savings goal data:`, goalData);
+          
+          // Initialize members array if it doesn't exist
+          const currentMembers = Array.isArray(goalData.members) ? goalData.members : [];
+          
           // Add the user to the members array if not already present
           if (!currentMembers.includes(userId)) {
+            console.log(`Adding user ${userId} to members array:`, currentMembers);
             await updateDoc(goalRef, {
               members: [...currentMembers, userId],
               updatedAt: serverTimestamp(),
             });
+            console.log(`Successfully added user ${userId} to savings goal members`);
+          } else {
+            console.log(`User ${userId} is already a member of this savings goal`);
           }
           
-          console.log(`Successfully added user ${userId} to savings goal ${invitationData.savingsId}`);
           return {
             success: true,
-            invitationId: invitationId
+            invitationId: invitationId,
+            savingsId: savingsId // Return the savings ID so we can redirect to it
           };
         } else {
+          console.log(`Savings goal with ID ${savingsId} not found`);
           return {
             success: true,
             invitationId: invitationId,
