@@ -8,6 +8,12 @@ import { Button } from '@/components/ui/button';
 import { PiggyBank, ArrowLeft } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/firebase/config';
+import { GoalHeader } from '@/components/savings/SavingsGoalDetails/GoalHeader';
+import { SavingsProgress } from '@/components/savings/SavingsGoalDetails/SavingsProgress';
+import { ContributionForm } from '@/components/savings/SavingsGoalDetails/ContributionForm';
+import { SavingsMethod } from '@/components/savings/SavingsGoalDetails/SavingsMethod';
+import { GroupMembers } from '@/components/savings/SavingsGoalDetails/GroupMembers';
+import { ContributionsHistory } from '@/components/savings/SavingsGoalDetails/ContributionsHistory';
 
 interface Member {
   id: string;
@@ -33,7 +39,6 @@ const SavingsGoalDetail = () => {
       if (goalData) {
         setSavingsGoal(goalData);
         
-        // If this is a group savings goal, fetch member names
         if (goalData.method === 'group' && Array.isArray(goalData.members)) {
           fetchMemberNames(goalData.userId, goalData.members);
         }
@@ -54,10 +59,8 @@ const SavingsGoalDetail = () => {
         const goalData = await getSavingsGoalById(id);
         if (goalData) {
           setSavingsGoal(goalData);
-          // Set username from currentUser
           setUsername(currentUser.displayName || currentUser.email || 'User');
           
-          // If this is a group savings goal, fetch member names
           if (goalData.method === 'group' && Array.isArray(goalData.members)) {
             fetchMemberNames(goalData.userId, goalData.members);
           }
@@ -88,7 +91,6 @@ const SavingsGoalDetail = () => {
     try {
       const memberData: Member[] = [];
       
-      // Add owner first
       const ownerDoc = await getDoc(doc(db, 'users', ownerId));
       if (ownerDoc.exists()) {
         const ownerData = ownerDoc.data();
@@ -103,9 +105,7 @@ const SavingsGoalDetail = () => {
         });
       }
       
-      // Add other members
       for (const memberId of memberIds) {
-        // Skip if this is the owner (already added)
         if (memberId === ownerId) continue;
         
         try {
@@ -134,7 +134,6 @@ const SavingsGoalDetail = () => {
       setMembersWithNames(memberData);
     } catch (error) {
       console.error("Error fetching member names:", error);
-      // Still set members with just IDs if lookup fails
       const basicMembers = memberIds.map(id => ({
         id,
         name: id === ownerId ? 'Owner' : 'Member'
