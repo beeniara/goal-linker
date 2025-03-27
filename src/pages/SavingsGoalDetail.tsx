@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -10,15 +9,6 @@ import { PiggyBank, ArrowLeft } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 
-// Import our components
-import { GoalHeader } from '@/components/savings/SavingsGoalDetails/GoalHeader';
-import { SavingsProgress } from '@/components/savings/SavingsGoalDetails/SavingsProgress';
-import { ContributionForm } from '@/components/savings/SavingsGoalDetails/ContributionForm';
-import { SavingsMethod } from '@/components/savings/SavingsGoalDetails/SavingsMethod';
-import { ContributionsHistory } from '@/components/savings/SavingsGoalDetails/ContributionsHistory';
-import { GroupMembers } from '@/components/savings/SavingsGoalDetails/GroupMembers';
-
-// Type for members with names
 interface Member {
   id: string;
   name: string;
@@ -34,6 +24,24 @@ const SavingsGoalDetail = () => {
   const [showContributionForm, setShowContributionForm] = useState(false);
   const [username, setUsername] = useState<string>('');
   const [membersWithNames, setMembersWithNames] = useState<Member[]>([]);
+
+  const refreshSavingsGoal = async () => {
+    if (!id || !currentUser) return;
+    
+    try {
+      const goalData = await getSavingsGoalById(id);
+      if (goalData) {
+        setSavingsGoal(goalData);
+        
+        // If this is a group savings goal, fetch member names
+        if (goalData.method === 'group' && Array.isArray(goalData.members)) {
+          fetchMemberNames(goalData.userId, goalData.members);
+        }
+      }
+    } catch (error) {
+      console.error("Error refreshing savings goal:", error);
+    }
+  };
 
   useEffect(() => {
     const fetchSavingsGoal = async () => {
@@ -76,7 +84,6 @@ const SavingsGoalDetail = () => {
     fetchSavingsGoal();
   }, [id, currentUser, navigate, toast]);
 
-  // Function to fetch member names from user IDs
   const fetchMemberNames = async (ownerId: string, memberIds: string[]) => {
     try {
       const memberData: Member[] = [];
@@ -175,7 +182,6 @@ const SavingsGoalDetail = () => {
     );
   }
 
-  // Get owner info
   const ownerName = membersWithNames.length > 0 
     ? membersWithNames.find(m => m.id === savingsGoal.userId)?.name || 'Unknown Owner'
     : 'Unknown Owner';
@@ -226,13 +232,14 @@ const SavingsGoalDetail = () => {
         </CardContent>
       </Card>
 
-      {/* Display members if this is a group savings goal */}
       {savingsGoal.method === 'group' && (
         <GroupMembers
           ownerName={ownerName}
           ownerId={savingsGoal.userId}
           members={membersWithNames}
           currentUserId={currentUser?.uid || ''}
+          savingsId={id || ''}
+          onMemberAdded={refreshSavingsGoal}
         />
       )}
 
