@@ -1,6 +1,6 @@
-
 import { db } from '@/firebase/config';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, updateDoc, doc, deleteDoc, getDoc } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 
 // Email notification service
 export async function sendEmailNotification(
@@ -10,15 +10,25 @@ export async function sendEmailNotification(
 ) {
   console.log(`[EMAIL NOTIFICATION] To: ${email}, Subject: ${subject}, Message: ${message}`);
   try {
+    const auth = getAuth();
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      throw new Error('No authenticated user found');
+    }
+    console.log(`Authenticated user email: ${currentUser.email}`);
+
     // Log the notification in Firestore for demo purposes
-    const docRef = await addDoc(collection(db, 'emailNotifications'), {
+    const notificationData = {
       to: email,
       subject,
       message,
-      sent: false, // In a real implementation with a cloud function, this would be updated when sent
+      sent: false,
       createdAt: serverTimestamp(),
-      status: 'pending'
-    });
+      status: 'pending',
+      userId: currentUser.uid // Add userId for potential future rule checks
+    };
+    console.log('Logging email notification with data:', notificationData);
+    const docRef = await addDoc(collection(db, 'emailNotifications'), notificationData);
     
     console.log(`Email notification logged with ID: ${docRef.id}`);
     return { success: true, id: docRef.id };
@@ -28,6 +38,7 @@ export async function sendEmailNotification(
   }
 }
 
+// Rest of the file remains unchanged
 export interface ReminderNotification {
   id?: string;
   reminderId: string;
@@ -51,23 +62,20 @@ export async function createReminderNotification(
   try {
     console.log(`Creating reminder notification for ${userEmail} for reminder ${reminderId}`);
     
-    // Check if notification already exists
     const existingNotification = await getReminderNotification(reminderId, userId);
     if (existingNotification) {
       console.log(`Notification already exists for reminder ${reminderId}, updating instead`);
       return updateReminderNotificationFrequency(existingNotification.id!, frequency);
     }
     
-    // Calculate next send time based on frequency
     const now = new Date();
     let nextSendTime = new Date();
     
     if (frequency === '12h') {
-      nextSendTime.setHours(now.getHours() - 12); // Send when 12 hours are left
+      nextSendTime.setHours(now.getHours() - 12);
     } else if (frequency === '24h') {
-      nextSendTime.setHours(now.getHours() - 24); // Send when 24 hours are left
+      nextSendTime.setHours(now.getHours() - 24);
     } else {
-      // For 'once', send right away
       nextSendTime = now;
     }
     
@@ -85,7 +93,6 @@ export async function createReminderNotification(
     const docRef = await addDoc(collection(db, 'reminderNotifications'), notification);
     console.log('Reminder notification created with ID:', docRef.id);
     
-    // Send confirmation email
     await sendEmailNotification(
       userEmail,
       'Reminder Notification Enabled',
@@ -126,7 +133,6 @@ export async function getReminderNotification(
       lastSentAt: doc.data().lastSentAt ? doc.data().lastSentAt.toDate() : undefined,
       createdAt: doc.data().createdAt ? doc.data().createdAt.toDate() : undefined
     } as ReminderNotification;
-    
   } catch (error) {
     console.error('Error getting reminder notification:', error);
     return null;
@@ -147,7 +153,6 @@ export async function updateReminderNotificationFrequency(
       return { success: false, error: 'Notification not found' };
     }
     
-    // Calculate new next send time
     const now = new Date();
     let nextSendTime = new Date();
     
@@ -165,7 +170,6 @@ export async function updateReminderNotificationFrequency(
       updatedAt: serverTimestamp()
     });
     
-    // Send confirmation email about the update
     const data = notificationSnap.data();
     if (data.userEmail) {
       await sendEmailNotification(
@@ -194,16 +198,11 @@ export async function deleteReminderNotification(
     if (notificationSnap.exists()) {
       const data = notificationSnap.data();
       
-      // Option 1: Soft delete (recommended for audit trail)
       await updateDoc(notificationRef, { 
         isActive: false,
         deactivatedAt: serverTimestamp()
       });
       
-      // Option 2: Hard delete
-      // await deleteDoc(notificationRef);
-      
-      // Send confirmation email
       if (data.userEmail) {
         await sendEmailNotification(
           data.userEmail,
@@ -253,7 +252,6 @@ export async function getUserReminderNotifications(
   }
 }
 
-// Helper function to check if a notification should be sent
 export async function checkAndSendDueNotifications() {
   try {
     const now = new Date();
@@ -268,18 +266,16 @@ export async function checkAndSendDueNotifications() {
       const notificationId = docSnapshot.id;
       
       try {
-        // Send the email notification
         await sendEmailNotification(
           notification.userEmail,
           `Reminder: ${notification.reminderTitle}`,
           `This is a reminder that "${notification.reminderTitle}" is ${notification.frequency === 'once' ? 'now due' : `due in ${notification.frequency}`}.`
         );
         
-        // Update the notification record
         await updateDoc(doc(db, 'reminderNotifications', notificationId), {
           lastSentAt: serverTimestamp(),
           nextSendTime: notification.frequency === 'once' 
-            ? new Date(8640000000000000) // Far future date for one-time notifications
+            ? new Date(8640000000000000)
             : new Date(now.getTime() + (notification.frequency === '12h' ? 12 : 24) * 60 * 60 * 1000)
         });
         
