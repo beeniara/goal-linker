@@ -95,7 +95,7 @@ export async function respondToInvitation(
               (updateError.message && updateError.message.includes('Missing or insufficient permissions'))) {
             return {
               success: false,
-              message: "You don't have permission to join this goal. The owner will need to manually add you in their savings goal settings.",
+              message: "You don't have permission to join this goal. The goal owner needs to manually add you through their savings goal settings. Your invitation has been processed successfully.",
               code: "permission-denied",
               savingsId: savingsId, // Return savingsId for navigation
               invitationId: invitationId
@@ -104,7 +104,7 @@ export async function respondToInvitation(
           
           return {
             success: false,
-            message: "Unable to automatically add you to the savings goal. The owner will need to manually add you in their settings.",
+            message: "Your invitation has been processed, but we couldn't automatically add you to the goal members list. The goal owner needs to manually add you through their settings.",
             code: "goal-update-error",
             savingsId: savingsId, // Return savingsId for navigation
             invitationId: invitationId
@@ -116,7 +116,7 @@ export async function respondToInvitation(
         // Still return the savingsId even if everything fails
         return {
           success: false,
-          message: "There was an issue updating the savings goal. The owner will need to manually add you through their settings.",
+          message: "Your invitation was processed, but there was an issue with the savings goal. The goal owner needs to manually add you through their settings.",
           savingsId: savingsId, // Return savingsId for navigation
           invitationId: invitationId
         };
