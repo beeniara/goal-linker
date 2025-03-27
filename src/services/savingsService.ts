@@ -24,18 +24,13 @@ export interface SavingsGoal {
   }>;
   members: string[];
   completed: boolean;
+  invitationId?: string; // Added to track invitation for updates
 }
 
 /**
  * Creates a new savings goal in Firestore
- * @param userId - The ID of the user creating the goal
- * @param data - The savings goal form data
- * @returns The ID of the newly created savings goal
  */
-export async function createSavingsGoal(
-  userId: string, 
-  data: SavingsGoalFormValues
-) {
+export async function createSavingsGoal(userId: string, data: SavingsGoalFormValues) {
   try {
     console.log("Creating savings goal for user:", userId);
     console.log("Savings goal data:", data);
@@ -75,25 +70,19 @@ export async function createSavingsGoal(
 
 /**
  * Retrieves all savings goals for a specific user
- * @param userId - The ID of the user whose goals to fetch
- * @returns An array of savings goal objects
  */
 export async function getUserSavingsGoals(userId: string): Promise<SavingsGoal[]> {
   try {
     console.log("Fetching savings goals for user:", userId);
     
     const savingsRef = collection(db, 'savings');
-    
     const q = query(savingsRef, where('userId', '==', userId));
-    
     const querySnapshot = await getDocs(q);
     
-    const goals = querySnapshot.docs.map(doc => {
-      return {
-        id: doc.id,
-        ...doc.data()
-      } as SavingsGoal;
-    });
+    const goals = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as SavingsGoal));
     
     console.log(`Found ${goals.length} savings goals for user ${userId}`);
     return goals;
@@ -106,8 +95,6 @@ export async function getUserSavingsGoals(userId: string): Promise<SavingsGoal[]
 
 /**
  * Retrieves a single savings goal by its ID
- * @param goalId - The ID of the savings goal to retrieve
- * @returns The savings goal object or null if not found
  */
 export async function getSavingsGoalById(goalId: string): Promise<SavingsGoal | null> {
   try {
@@ -137,18 +124,8 @@ export async function getSavingsGoalById(goalId: string): Promise<SavingsGoal | 
 
 /**
  * Adds a contribution to a savings goal
- * @param goalId - The ID of the savings goal
- * @param userId - The ID of the user making the contribution
- * @param amount - The amount being contributed
- * @param note - Optional note for the contribution
- * @returns The updated savings goal data
  */
-export async function addContribution(
-  goalId: string,
-  userId: string,
-  amount: number,
-  note: string = ''
-): Promise<SavingsGoal> {
+export async function addContribution(goalId: string, userId: string, amount: number, note: string = ''): Promise<SavingsGoal> {
   try {
     console.log(`Adding contribution of $${amount} to goal ${goalId} by user ${userId}`);
     
@@ -160,7 +137,6 @@ export async function addContribution(
     }
     
     const goalData = goalDoc.data();
-    
     const contributionId = uuidv4();
     const now = new Date();
     const contribution = {
@@ -199,19 +175,13 @@ export async function addContribution(
 }
 
 /**
- * Adds a member to a savings goal by email
- * @param savingsId - The ID of the savings goal
- * @param email - The email of the user to add
- * @returns An object indicating success or failure
+ * Adds a member to a savings goal by email using an invitation
  */
-export async function addMemberToSavingsGoal(
-  savingsId: string,
-  email: string
-): Promise<{ success: boolean; message?: string }> {
+export async function addMemberToSavingsGoal(savingsId: string, email: string, invitationId: string): Promise<{ success: boolean; message?: string }> {
   try {
-    console.log(`Adding member with email ${email} to savings goal ${savingsId}`);
+    console.log(`Adding member with email ${email} to savings goal ${savingsId} using invitation ${invitationId}`);
     
-    // First, try to find the user with this email
+    // Find the user with the given email
     const usersRef = collection(db, 'users');
     const q = query(usersRef, where('email', '==', email));
     const querySnapshot = await getDocs(q);
@@ -224,7 +194,6 @@ export async function addMemberToSavingsGoal(
       };
     }
     
-    // Get the user ID from the first matching document
     const userId = querySnapshot.docs[0].id;
     console.log(`Found user with ID ${userId} for email ${email}`);
     
@@ -251,9 +220,31 @@ export async function addMemberToSavingsGoal(
       };
     }
     
-    // Add the user to the members array
+    // Verify the invitation
+    const invitationRef = doc(db, 'savingsInvitations', invitationId);
+    const invitationDoc = await getDoc(invitationRef);
+    
+    if (!invitationDoc.exists()) {
+      console.log(`Invitation with ID ${invitationId} not found`);
+      return {
+        success: false,
+        message: `Invalid invitation`
+      };
+    }
+    
+    const invitationData = invitationDoc.data();
+    if (invitationData.status !== 'accepted' || invitationData.inviteeId !== userId) {
+      console.log(`Invitation ${invitationId} is not accepted or does not match user ${userId}`);
+      return {
+        success: false,
+        message: `Invitation is not valid or not accepted`
+      };
+    }
+    
+    // Update the savings goal with the new member and invitationId
     await updateDoc(goalRef, {
       members: arrayUnion(userId),
+      invitationId: invitationId, // Include invitationId in the update
       updatedAt: serverTimestamp()
     });
     
@@ -265,13 +256,11 @@ export async function addMemberToSavingsGoal(
   } catch (error: any) {
     console.error("Error adding member to savings goal:", error);
     
-    // Improved error handling - check for common Firestore errors
-    if (error.code === 'permission-denied' || 
-        (error.message && error.message.includes('Missing or insufficient permissions'))) {
-      console.error("Permission denied error - ensure you have correct Firestore rules");
+    if (error.code === 'permission-denied' || (error.message && error.message.includes('Missing or insufficient permissions'))) {
+      console.error("Permission denied error - ensure the invitation is valid and accepted");
       return {
         success: false,
-        message: "You don't have permission to add members to this savings goal. This may be because you're not the owner."
+        message: "You don't have permission to add members. Ensure the invitation is valid and accepted."
       };
     }
     
