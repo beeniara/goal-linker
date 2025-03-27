@@ -265,12 +265,13 @@ export async function addMemberToSavingsGoal(
   } catch (error: any) {
     console.error("Error adding member to savings goal:", error);
     
-    // Handle permission errors specifically
+    // Improved error handling - check for common Firestore errors
     if (error.code === 'permission-denied' || 
         (error.message && error.message.includes('Missing or insufficient permissions'))) {
+      console.error("Permission denied error - ensure you have correct Firestore rules");
       return {
         success: false,
-        message: "You don't have permission to add members to this savings goal"
+        message: "You don't have permission to add members to this savings goal. This may be because you're not the owner."
       };
     }
     

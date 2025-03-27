@@ -2,13 +2,14 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, UserPlus, X } from 'lucide-react';
+import { Plus, UserPlus, X, AlertCircle } from 'lucide-react';
 import { addMemberToSavingsGoal } from '@/services/savingsService';
 import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface ManageMembersProps {
   savingsId: string;
@@ -26,6 +27,7 @@ export const ManageMembers: React.FC<ManageMembersProps> = ({
   isOwner
 }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
 
@@ -43,6 +45,7 @@ export const ManageMembers: React.FC<ManageMembersProps> = ({
 
   const handleAddMember = async (values: z.infer<typeof emailSchema>) => {
     try {
+      setErrorMessage(null);
       setIsSubmitting(true);
       
       const result = await addMemberToSavingsGoal(savingsId, values.email);
@@ -56,6 +59,7 @@ export const ManageMembers: React.FC<ManageMembersProps> = ({
         setShowForm(false);
         onMemberAdded();
       } else {
+        setErrorMessage(result.message || 'Failed to add member');
         toast({
           title: 'Error',
           description: result.message || 'Failed to add member',
@@ -64,6 +68,7 @@ export const ManageMembers: React.FC<ManageMembersProps> = ({
       }
     } catch (error: any) {
       console.error('Error adding member:', error);
+      setErrorMessage(error.message || 'An unexpected error occurred');
       toast({
         title: 'Error',
         description: error.message || 'An unexpected error occurred',
@@ -100,6 +105,13 @@ export const ManageMembers: React.FC<ManageMembersProps> = ({
           <X className="h-4 w-4" />
         </Button>
       </div>
+      
+      {errorMessage && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{errorMessage}</AlertDescription>
+        </Alert>
+      )}
       
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handleAddMember)} className="space-y-4">
