@@ -1,6 +1,5 @@
-
 import { v4 as uuidv4 } from 'uuid';
-import { doc, setDoc, serverTimestamp, collection, getDocs, query, where, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, collection, getDocs, query, where, getDoc, updateDoc, Timestamp, arrayUnion } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 import { SavingsGoalFormValues } from '@/schemas/savingsGoalSchema';
 
@@ -196,5 +195,88 @@ export async function addContribution(
     console.error("Error adding contribution:", error);
     console.error("Error details:", JSON.stringify(error, null, 2));
     throw error;
+  }
+}
+
+/**
+ * Adds a member to a savings goal by email
+ * @param savingsId - The ID of the savings goal
+ * @param email - The email of the user to add
+ * @returns An object indicating success or failure
+ */
+export async function addMemberToSavingsGoal(
+  savingsId: string,
+  email: string
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    console.log(`Adding member with email ${email} to savings goal ${savingsId}`);
+    
+    // First, try to find the user with this email
+    const usersRef = collection(db, 'users');
+    const q = query(usersRef, where('email', '==', email));
+    const querySnapshot = await getDocs(q);
+    
+    if (querySnapshot.empty) {
+      console.log(`No user found with email ${email}`);
+      return {
+        success: false,
+        message: `No user found with email ${email}. They must sign up first.`
+      };
+    }
+    
+    // Get the user ID from the first matching document
+    const userId = querySnapshot.docs[0].id;
+    console.log(`Found user with ID ${userId} for email ${email}`);
+    
+    // Check if the savings goal exists
+    const goalRef = doc(db, 'savings', savingsId);
+    const goalDoc = await getDoc(goalRef);
+    
+    if (!goalDoc.exists()) {
+      console.log(`Savings goal with ID ${savingsId} not found`);
+      return {
+        success: false,
+        message: `Savings goal not found`
+      };
+    }
+    
+    const goalData = goalDoc.data();
+    
+    // Check if the user is already a member
+    if (goalData.members && goalData.members.includes(userId)) {
+      console.log(`User ${userId} is already a member of savings goal ${savingsId}`);
+      return {
+        success: false,
+        message: `${email} is already a member of this savings goal`
+      };
+    }
+    
+    // Add the user to the members array
+    await updateDoc(goalRef, {
+      members: arrayUnion(userId),
+      updatedAt: serverTimestamp()
+    });
+    
+    console.log(`Successfully added user ${userId} to savings goal ${savingsId}`);
+    
+    return {
+      success: true
+    };
+  } catch (error: any) {
+    console.error("Error adding member to savings goal:", error);
+    
+    // Handle permission errors specifically
+    if (error.code === 'permission-denied' || 
+        (error.message && error.message.includes('Missing or insufficient permissions'))) {
+      return {
+        success: false,
+        message: "You don't have permission to add members to this savings goal"
+      };
+    }
+    
+    return {
+      success: false,
+      message: error.message || "Failed to add member to savings goal"
+    };
   }
 }

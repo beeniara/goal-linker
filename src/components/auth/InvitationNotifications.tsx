@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useCallback } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -146,8 +145,8 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
         // If there's a permission error but we have a savingsId, still navigate to savings
         if (response.code === 'permission-denied' && response.savingsId) {
           toast({
-            title: 'Permission Issue',
-            description: response.message || 'You don\'t have permission to join this goal directly. The owner will need to add you manually in their settings.',
+            title: 'Action Required',
+            description: response.message || 'You don\'t have permission to join this goal directly. The goal owner needs to manually add you in their settings.',
             variant: 'destructive',
           });
           
@@ -159,8 +158,8 @@ export const InvitationNotifications: React.FC<InvitationNotificationsProps> = (
           });
         } else if (response.code === 'goal-update-error' && response.savingsId) {
           toast({
-            title: 'Invitation Processed',
-            description: response.message || 'The owner will need to manually add you to this savings goal.',
+            title: 'Action Required',
+            description: response.message || 'The goal owner needs to manually add you to this savings goal.',
             variant: 'default',
           });
           

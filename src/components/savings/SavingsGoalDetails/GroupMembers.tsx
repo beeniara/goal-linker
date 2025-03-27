@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
+import { ManageMembers } from './ManageMembers';
 
 interface GroupMemberProps {
   ownerName: string;
@@ -14,23 +15,37 @@ interface GroupMemberProps {
     name: string;
   }[];
   currentUserId: string;
+  savingsId: string;
+  onMemberAdded?: () => void;
 }
 
 export const GroupMembers: React.FC<GroupMemberProps> = ({
   ownerName,
   ownerId,
   members,
-  currentUserId
+  currentUserId,
+  savingsId,
+  onMemberAdded = () => {}
 }) => {
   // Filter out invited members (non-owner)
   const invitedMembers = members.filter(member => member.id !== ownerId);
+  const isOwner = currentUserId === ownerId;
 
   return (
     <Card className="mt-6">
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg font-medium flex items-center">
-          <Users className="h-5 w-5 mr-2 text-muted-foreground" />
-          Savings Group Members
+        <CardTitle className="text-lg font-medium flex items-center justify-between">
+          <div className="flex items-center">
+            <Users className="h-5 w-5 mr-2 text-muted-foreground" />
+            Savings Group Members
+          </div>
+          {isOwner && (
+            <ManageMembers 
+              savingsId={savingsId} 
+              onMemberAdded={onMemberAdded} 
+              isOwner={isOwner} 
+            />
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
