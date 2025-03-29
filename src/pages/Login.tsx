@@ -73,20 +73,7 @@ const Login = () => {
             </div>
           )}
           
-          <AlertMessageDisplay 
-            type="info" 
-            title="Firebase Index Required"
-            message={`If you see an error about missing Firestore indexes after login, you'll need to create it:
-            1. Click on the error link in the console
-            2. Sign in to your Firebase console
-            3. In the form that appears:
-               - Field 1: Enter userId with Ascending order
-               - Field 2: Enter createdAt with Descending order
-               - Select Collection for "Query scopes"
-            4. Click "Create index" and wait a few minutes for it to build
-
-            This is required for sorting reminders by creation date.`}
-          />
+        
           
           <LoginForm />
         </div>

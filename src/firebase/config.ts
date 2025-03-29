@@ -1,7 +1,7 @@
 
 import { initializeApp, getApps } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, enableIndexedDbPersistence } from 'firebase/firestore';
+import { getFirestore, Firestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 // Your web app's Firebase configuration
@@ -51,25 +51,11 @@ export const db = getFirestore(app); // Firestore database service
 export const storage = getStorage(app); // Storage service for files
 
 // Enable offline persistence when possible
-try {
-  console.log("Attempting to enable Firestore persistence...");
-  enableIndexedDbPersistence(db)
-    .then(() => {
-      console.log("Firestore persistence successfully enabled");
-    })
-    .catch((err) => {
-      if (err.code === 'failed-precondition') {
-        // Multiple tabs open, persistence can only be enabled in one tab at a time
-        console.log('Persistence failed: Multiple tabs open');
-      } else if (err.code === 'unimplemented') {
-        // The current browser does not support persistence
-        console.log('Persistence is not available in this browser');
-      } else {
-        console.error('Unknown error enabling persistence:', err);
-      }
-    });
-} catch (error) {
-  console.error("Error enabling persistence:", error);
-}
+const settings = { cache: "indexeddb" };
+setFirestoreSettings(db, settings);
 
 export default app;
+function setFirestoreSettings(db: Firestore, settings: { cache: string; }) {
+  throw new Error('Function not implemented.');
+}
+
