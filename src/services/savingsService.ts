@@ -181,6 +181,14 @@ export async function addMemberToSavingsGoal(savingsId: string, email: string, i
   try {
     console.log(`Adding member with email ${email} to savings goal ${savingsId} using invitation ${invitationId}`);
     
+    if (!invitationId) {
+      console.error('Missing invitation ID');
+      return {
+        success: false,
+        message: 'Missing invitation ID. You must provide a valid invitation ID to add a member.'
+      };
+    }
+    
     // Find the user with the given email
     const usersRef = collection(db, 'users');
     const q = query(usersRef, where('email', '==', email));
@@ -233,26 +241,68 @@ export async function addMemberToSavingsGoal(savingsId: string, email: string, i
     }
     
     const invitationData = invitationDoc.data();
-    if (invitationData.status !== 'accepted' || invitationData.inviteeId !== userId) {
-      console.log(`Invitation ${invitationId} is not accepted or does not match user ${userId}`);
+    
+    // Verify the invitation is for this user and savings goal
+    if (invitationData.savingsId !== savingsId) {
+      console.log(`Invitation ${invitationId} is not for savings goal ${savingsId}`);
       return {
         success: false,
-        message: `Invitation is not valid or not accepted`
+        message: `Invitation is not valid for this savings goal`
       };
     }
     
+    if (invitationData.inviteeEmail !== email) {
+      console.log(`Invitation ${invitationId} is not for email ${email}`);
+      return {
+        success: false,
+        message: `Invitation is not valid for this email address`
+      };
+    }
+    
+    // Update the invitation with the user ID if not already set
+    if (!invitationData.inviteeId) {
+      try {
+        await updateDoc(invitationRef, {
+          inviteeId: userId,
+          status: 'accepted',
+          updatedAt: serverTimestamp()
+        });
+        console.log(`Updated invitation ${invitationId} with user ID ${userId}`);
+      } catch (updateError) {
+        console.error('Error updating invitation:', updateError);
+        // Continue anyway - this is not critical
+      }
+    }
+    
     // Update the savings goal with the new member and invitationId
-    await updateDoc(goalRef, {
-      members: arrayUnion(userId),
-      invitationId: invitationId, // Include invitationId in the update
-      updatedAt: serverTimestamp()
-    });
-    
-    console.log(`Successfully added user ${userId} to savings goal ${savingsId}`);
-    
-    return {
-      success: true
-    };
+    try {
+      await updateDoc(goalRef, {
+        members: arrayUnion(userId),
+        invitationId: invitationId,  // Include invitationId in the update
+        updatedAt: serverTimestamp()
+      });
+      
+      console.log(`Successfully added user ${userId} to savings goal ${savingsId}`);
+      
+      return {
+        success: true
+      };
+    } catch (updateError: any) {
+      console.error('Error updating savings goal:', updateError);
+      
+      if (updateError.code === 'permission-denied' || 
+          (updateError.message && updateError.message.includes('Missing or insufficient permissions'))) {
+        return {
+          success: false,
+          message: "Permission denied. Ensure the invitation is valid and accepted."
+        };
+      }
+      
+      return {
+        success: false,
+        message: updateError.message || "Failed to add member to savings goal"
+      };
+    }
   } catch (error: any) {
     console.error("Error adding member to savings goal:", error);
     

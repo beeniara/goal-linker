@@ -17,8 +17,9 @@ interface ManageMembersProps {
   isOwner: boolean;
 }
 
-const emailSchema = z.object({
-  email: z.string().email({ message: "Please enter a valid email address" })
+const emailInviteSchema = z.object({
+  email: z.string().email({ message: "Please enter a valid email address" }),
+  invitationId: z.string().optional()
 });
 
 export const ManageMembers: React.FC<ManageMembersProps> = ({
@@ -31,10 +32,11 @@ export const ManageMembers: React.FC<ManageMembersProps> = ({
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
 
-  const form = useForm<z.infer<typeof emailSchema>>({
-    resolver: zodResolver(emailSchema),
+  const form = useForm<z.infer<typeof emailInviteSchema>>({
+    resolver: zodResolver(emailInviteSchema),
     defaultValues: {
-      email: ''
+      email: '',
+      invitationId: ''
     }
   });
 
@@ -43,12 +45,24 @@ export const ManageMembers: React.FC<ManageMembersProps> = ({
     return null;
   }
 
-  const handleAddMember = async (values: z.infer<typeof emailSchema>) => {
+  const handleAddMember = async (values: z.infer<typeof emailInviteSchema>) => {
     try {
       setErrorMessage(null);
       setIsSubmitting(true);
       
-      const result = await addMemberToSavingsGoal(savingsId, values.email);
+      // Check if there's no invitation ID
+      if (!values.invitationId) {
+        setErrorMessage('You need to invite this user first and provide their invitation ID. Use the "Invite Member" button instead.');
+        toast({
+          title: 'Missing Invitation',
+          description: 'You need to invite this user first. Use the "Invite Member" button.',
+          variant: 'destructive',
+        });
+        setIsSubmitting(false);
+        return;
+      }
+      
+      const result = await addMemberToSavingsGoal(savingsId, values.email, values.invitationId);
       
       if (result.success) {
         toast({
@@ -121,22 +135,52 @@ export const ManageMembers: React.FC<ManageMembersProps> = ({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Email</FormLabel>
-                <div className="flex space-x-2">
-                  <FormControl>
-                    <Input
-                      {...field}
-                      placeholder="user@example.com"
-                      disabled={isSubmitting}
-                    />
-                  </FormControl>
-                  <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting ? 'Adding...' : 'Add'}
-                  </Button>
-                </div>
+                <FormControl>
+                  <Input
+                    {...field}
+                    placeholder="user@example.com"
+                    disabled={isSubmitting}
+                  />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
+          
+          <FormField
+            control={form.control}
+            name="invitationId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Invitation ID</FormLabel>
+                <FormControl>
+                  <Input
+                    {...field}
+                    placeholder="Enter invitation ID"
+                    disabled={isSubmitting}
+                  />
+                </FormControl>
+                <FormMessage />
+                <p className="text-xs text-muted-foreground mt-1">
+                  You need to invite the user first using the "Invite Member" button and then enter the invitation ID here.
+                </p>
+              </FormItem>
+            )}
+          />
+          
+          <div className="flex space-x-2 justify-end">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => setShowForm(false)}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? 'Adding...' : 'Add Member'}
+            </Button>
+          </div>
         </form>
       </Form>
     </div>
