@@ -1,80 +1,275 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Common validation functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function hasValidTimestamps() {
+      let data = request.resource.data;
+      return data.createdAt is timestamp && 
+             data.updatedAt is timestamp &&
+             data.updatedAt >= data.createdAt;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches('^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$');
+    }
+
+    // Users collection
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      function isValidUser() {
+        let data = request.resource.data;
+        return data.keys().hasAll(['email', 'role', 'displayName']) &&
+               isValidEmail(data.email) &&
+               data.role in ['user', 'admin'] &&
+               data.displayName is string &&
+               data.displayName.size() > 0 &&
+               hasValidTimestamps();
+      }
+
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser();
+      allow update: if isOwner(userId) && isValidUser();
+      allow delete: if isAdmin();
     }
     
-   match /savings/{savingsId} {
-  allow read: if request.auth != null && 
-              (resource.data.userId == request.auth.uid || 
-               resource.data.members.hasAny([request.auth.uid]));
-  allow create: if request.auth != null;
-  allow update: if request.auth != null && 
-                (resource.data.userId == request.auth.uid || 
-                 resource.data.members.hasAny([request.auth.uid]) ||
-                 (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members']) &&
-                  exists(/databases/$(database)/documents/savingsInvitations/$(request.resource.data.invitationId)) &&
-                  get(/databases/$(database)/documents/savingsInvitations/$(request.resource.data.invitationId)).data.inviteeId == request.auth.uid));
-  allow delete: if request.auth != null && 
-                (resource.data.userId == request.auth.uid || 
-                 resource.data.members.hasAny([request.auth.uid]));
-}
+    // Savings collection
+    match /savings/{savingsId} {
+      function isValidSaving() {
+        let data = request.resource.data;
+        return data.keys().hasAll(['userId', 'title', 'targetAmount', 'currentAmount', 'members', 'contributions', 'createdAt', 'updatedAt']) &&
+               data.userId is string &&
+               data.title is string &&
+               data.title.size() > 0 &&
+               data.targetAmount is number &&
+               data.targetAmount > 0 &&
+               data.currentAmount is number &&
+               data.currentAmount >= 0 &&
+               data.members is list &&
+               data.members.size() > 0 &&
+               data.members.hasAll([data.userId]) &&
+               data.contributions is map &&
+               (data.contributions[data.userId] is number || data.contributions[data.userId] == 0) &&
+               hasValidTimestamps();
+      }
 
+      function isMember() {
+        return request.auth.uid in resource.data.members;
+      }
+
+      function isValidMemberUpdate() {
+        let oldData = resource.data;
+        let newData = request.resource.data;
+        let onlyMembersChanged = request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'updatedAt']);
+        
+        return oldData.members.hasAll([oldData.userId]) && // Owner must always be a member
+               newData.members.hasAll([oldData.userId]) && // Owner must always be a member
+               newData.members.size() >= oldData.members.size(); // Can't remove members, only add
+      }
+
+      function isValidContribution() {
+        let oldData = resource.data;
+        let newData = request.resource.data;
+        let diff = newData.diff(oldData);
+        
+        // Only allow updating contributions and currentAmount
+        let validKeys = diff.affectedKeys().hasOnly(['contributions', 'currentAmount', 'updatedAt']);
+        let contributionDiff = newData.contributions[request.auth.uid] - (oldData.contributions[request.auth.uid] || 0);
+        let amountDiff = newData.currentAmount - oldData.currentAmount;
+        
+        return validKeys && 
+               contributionDiff > 0 && // Contribution must increase
+               contributionDiff == amountDiff && // Amount increase must match contribution
+               newData.currentAmount <= newData.targetAmount;
+      }
+
+      allow read: if isAuthenticated() && (isOwner(resource.data.userId) || isMember());
+      
+      allow create: if isAuthenticated() && 
+                   isValidSaving() && 
+                   isOwner(request.resource.data.userId) &&
+                   request.resource.data.currentAmount == 0;
+      
+      allow update: if isAuthenticated() && (
+                     // Owner can update basic info and members
+                     (isOwner(resource.data.userId) && isValidMemberUpdate()) ||
+                     
+                     // Members can contribute
+                     (isMember() && isValidContribution()) ||
+                     
+                     // New member accepting invitation
+                     (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'contributions', 'updatedAt']) &&
+                      exists(/databases/$(database)/documents/savingsInvitations/$(request.resource.data.invitationId)) &&
+                      get(/databases/$(database)/documents/savingsInvitations/$(request.resource.data.invitationId)).data.inviteeId == request.auth.uid)
+                   );
+      
+      allow delete: if isOwner(resource.data.userId) && resource.data.currentAmount == 0;
+    }
+
+    // Savings Invitations collection
     match /savingsInvitations/{invitationId} {
-      allow create: if request.auth != null;
-      allow list: if request.auth != null;
-      allow read, update, delete: if request.auth != null && 
-                                   resource.data.inviterId == request.auth.uid;
-      allow read: if request.auth != null && 
-                   resource.data.inviteeEmail == request.auth.token.email;
-      allow update: if request.auth != null && 
+      function isValidInvitation() {
+        let data = request.resource.data;
+        let saving = get(/databases/$(database)/documents/savings/$(data.savingsId));
+        
+        return data.keys().hasAll(['savingsId', 'inviterId', 'inviteeEmail', 'status', 'createdAt', 'updatedAt']) &&
+               data.savingsId is string &&
+               data.inviterId == request.auth.uid &&
+               isValidEmail(data.inviteeEmail) &&
+               data.status in ['pending', 'accepted', 'declined'] &&
+               exists(/databases/$(database)/documents/savings/$(data.savingsId)) &&
+               saving.data.userId == request.auth.uid && // Only saving owner can invite
+               !(data.inviteeEmail in saving.data.members) && // Can't invite existing members
+               hasValidTimestamps();
+      }
+
+      allow create: if isAuthenticated() && isValidInvitation();
+      allow read: if isAuthenticated() && (
+                   resource.data.inviterId == request.auth.uid ||
+                   resource.data.inviteeEmail == request.auth.token.email
+                 );
+      allow update: if isAuthenticated() && (
                      resource.data.inviteeEmail == request.auth.token.email &&
-                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'inviteeId', 'updatedAt']);
-      allow get: if request.auth != null;
+                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'inviteeId', 'updatedAt']) &&
+                     request.resource.data.status in ['accepted', 'declined']
+                   );
+      allow delete: if isAuthenticated() && resource.data.inviterId == request.auth.uid;
     }
     
-    match /reminders/{reminderId} {
-      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
-    }
-    
-    match /support/{supportId} {
-      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
-    }
-    
+    // Projects collection
     match /projects/{projectId} {
-      allow read: if request.auth != null && (resource.data.userId == request.auth.uid || 
-                                             resource.data.collaborators[request.auth.uid] == true);
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      function isValidProject() {
+        let data = request.resource.data;
+        return data.keys().hasAll(['userId', 'title', 'collaborators']) &&
+               data.userId is string &&
+               data.title is string &&
+               data.title.size() > 0 &&
+               data.collaborators is map &&
+               data.collaborators[data.userId] == true && // Owner must be a collaborator
+               hasValidTimestamps();
+      }
+
+      function isCollaborator() {
+        return resource.data.collaborators[request.auth.uid] == true;
+      }
+
+      allow read: if isAuthenticated() && (isOwner(resource.data.userId) || isCollaborator());
+      allow create: if isAuthenticated() && isValidProject() && isOwner(request.resource.data.userId);
+      allow update: if isAuthenticated() && (
+                     isOwner(resource.data.userId) ||
+                     (isCollaborator() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'progress', 'updatedAt']))
+                   );
+      allow delete: if isOwner(resource.data.userId);
     }
     
+    // Tasks collection
     match /tasks/{taskId} {
-      allow read: if request.auth != null && (resource.data.userId == request.auth.uid || 
-                                             resource.data.collaborators[request.auth.uid] == true);
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      function isValidTask() {
+        let data = request.resource.data;
+        return data.keys().hasAll(['userId', 'title', 'status', 'projectId']) &&
+               data.userId is string &&
+               data.title is string &&
+               data.title.size() > 0 &&
+               data.status in ['todo', 'in_progress', 'completed'] &&
+               data.projectId is string &&
+               exists(/databases/$(database)/documents/projects/$(data.projectId)) &&
+               hasValidTimestamps();
+      }
+
+      function isProjectCollaborator() {
+        let project = get(/databases/$(database)/documents/projects/$(resource.data.projectId));
+        return project.data.collaborators[request.auth.uid] == true;
+      }
+
+      allow read: if isAuthenticated() && (isOwner(resource.data.userId) || isProjectCollaborator());
+      allow create: if isAuthenticated() && isValidTask() && isOwner(request.resource.data.userId);
+      allow update: if isAuthenticated() && (
+                     isOwner(resource.data.userId) ||
+                     (isProjectCollaborator() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'progress', 'updatedAt']))
+                   );
+      allow delete: if isOwner(resource.data.userId);
     }
     
+    // Goals collection
     match /goals/{goalId} {
-      allow read: if request.auth != null && (resource.data.userId == request.auth.uid || 
-                                             resource.data.collaborators[request.auth.uid] == true);
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      function isValidGoal() {
+        let data = request.resource.data;
+        return data.keys().hasAll(['userId', 'title', 'targetDate']) &&
+               data.userId is string &&
+               data.title is string &&
+               data.title.size() > 0 &&
+               data.targetDate is timestamp &&
+               data.targetDate > request.time &&
+               hasValidTimestamps();
+      }
+
+      allow read: if isAuthenticated() && (
+                   isOwner(resource.data.userId) ||
+                   resource.data.collaborators[request.auth.uid] == true
+                 );
+      allow create: if isAuthenticated() && isValidGoal() && isOwner(request.resource.data.userId);
+      allow update: if isAuthenticated() && (
+                     isOwner(resource.data.userId) ||
+                     (resource.data.collaborators[request.auth.uid] == true &&
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['progress', 'status', 'updatedAt']))
+                   );
+      allow delete: if isOwner(resource.data.userId);
     }
 
+    // Support collection
+    match /support/{supportId} {
+      function isValidSupport() {
+        let data = request.resource.data;
+        return data.keys().hasAll(['userId', 'subject', 'message', 'status']) &&
+               data.userId is string &&
+               data.subject is string &&
+               data.subject.size() > 0 &&
+               data.message is string &&
+               data.message.size() > 0 &&
+               data.status in ['open', 'in_progress', 'resolved', 'closed'] &&
+               hasValidTimestamps();
+      }
+
+      allow read: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
+      allow create: if isAuthenticated() && isValidSupport() && isOwner(request.resource.data.userId);
+      allow update: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Email Notifications collection
     match /emailNotifications/{notificationId} {
-      allow create: if request.auth != null;
-      allow read: if request.auth != null && request.resource.data.to == request.auth.token.email;
-      allow update, delete: if request.auth != null && resource.data.to == request.auth.token.email;
+      function isValidNotification() {
+        let data = request.resource.data;
+        return data.keys().hasAll(['to', 'subject', 'body', 'status']) &&
+               isValidEmail(data.to) &&
+               data.to == request.auth.token.email &&
+               data.subject is string &&
+               data.subject.size() > 0 &&
+               data.body is string &&
+               data.body.size() > 0 &&
+               data.status in ['pending', 'sent', 'failed'] &&
+               hasValidTimestamps();
+      }
+
+      allow create: if isAuthenticated() && isValidNotification();
+      allow read: if isAuthenticated() && resource.data.to == request.auth.token.email;
+      allow update, delete: if false; // Only allow updates through server functions
     }
 
+    // Catch-all rule - must be at the end
     match /{document=**} {
-      allow read, write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow read, write: if isAdmin();
     }
   }
 }

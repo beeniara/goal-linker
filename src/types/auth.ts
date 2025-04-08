@@ -1,4 +1,3 @@
-
 import { User } from 'firebase/auth';
 
 export type UserRole = 'user' | 'admin';
@@ -25,7 +24,7 @@ export interface AuthContextType {
   logout: () => Promise<void>;
   googleSignIn: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
-  refreshUserData: () => Promise<void>;
+  refreshUserData: () => Promise<UserData>;
   loading: boolean;
   isAdmin: boolean;
 }

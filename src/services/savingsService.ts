@@ -1,7 +1,8 @@
 import { v4 as uuidv4 } from 'uuid';
-import { doc, setDoc, serverTimestamp, collection, getDocs, query, where, getDoc, updateDoc, Timestamp, arrayUnion } from 'firebase/firestore';
-import { db } from '@/firebase/config';
+import { doc, setDoc, serverTimestamp, collection, getDocs, query, where, getDoc, updateDoc, Timestamp, arrayUnion, addDoc, deleteDoc, increment } from 'firebase/firestore';
+import { db } from '../config/firebase';
 import { SavingsGoalFormValues } from '@/schemas/savingsGoalSchema';
+import { Savings, SavingsWithId, SavingsInvitation, SavingsInvitationWithId } from '../types/savings';
 
 export interface SavingsGoal {
   id: string;
@@ -320,3 +321,319 @@ export async function addMemberToSavingsGoal(savingsId: string, email: string, i
     };
   }
 }
+
+export const createSaving = async (userId: string, title: string, targetAmount: number) => {
+  const savingsRef = collection(db, 'savings');
+  
+  const newSaving: Savings = {
+    userId,
+    title,
+    targetAmount,
+    currentAmount: 0,
+    members: [userId],
+    contributions: {
+      [userId]: 0
+    },
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  };
+
+  const docRef = await addDoc(savingsRef, newSaving);
+  return { id: docRef.id, ...newSaving };
+};
+
+export const inviteToSaving = async (savingId: string, inviterId: string, inviteeEmail: string) => {
+  const invitationsRef = collection(db, 'savingsInvitations');
+  
+  const newInvitation: SavingsInvitation = {
+    savingsId: savingId,
+    inviterId,
+    inviteeEmail,
+    status: 'pending',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  };
+
+  const docRef = await addDoc(invitationsRef, newInvitation);
+  return { id: docRef.id, ...newInvitation };
+};
+
+export const acceptInvitation = async (invitationId: string, savingId: string, userId: string) => {
+  const savingRef = doc(db, 'savings', savingId);
+  const invitationRef = doc(db, 'savingsInvitations', invitationId);
+  
+  // Update saving to add new member
+  await updateDoc(savingRef, {
+    members: [...(await getDoc(savingRef)).data()?.members || [], userId],
+    contributions: {
+      ...(await getDoc(savingRef)).data()?.contributions || {},
+      [userId]: 0
+    },
+    updatedAt: serverTimestamp()
+  });
+
+  // Update invitation status
+  await updateDoc(invitationRef, {
+    status: 'accepted',
+    inviteeId: userId,
+    updatedAt: serverTimestamp()
+  });
+};
+
+export const contributeToSaving = async (savingId: string, userId: string, amount: number) => {
+  const savingRef = doc(db, 'savings', savingId);
+  const savingDoc = await getDoc(savingRef);
+  const savingData = savingDoc.data();
+  
+  if (!savingData) throw new Error('Saving not found');
+  if (savingData.currentAmount + amount > savingData.targetAmount) {
+    throw new Error('Contribution would exceed target amount');
+  }
+
+  await updateDoc(savingRef, {
+    currentAmount: increment(amount),
+    [`contributions.${userId}`]: increment(amount),
+    updatedAt: serverTimestamp()
+  });
+};
+
+export const getSaving = async (savingId: string) => {
+  const savingRef = doc(db, 'savings', savingId);
+  const savingDoc = await getDoc(savingRef);
+  return savingDoc.exists() ? { id: savingDoc.id, ...savingDoc.data() } : null;
+};
+
+export const getUserSavings = async (userId: string) => {
+  const savingsRef = collection(db, 'savings');
+  const q = query(savingsRef, where('members', 'array-contains', userId));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+export const getPendingInvitations = async (email: string) => {
+  const invitationsRef = collection(db, 'savingsInvitations');
+  const q = query(
+    invitationsRef,
+    where('inviteeEmail', '==', email),
+    where('status', '==', 'pending')
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+export const deleteSaving = async (savingId: string) => {
+  const savingRef = doc(db, 'savings', savingId);
+  const savingDoc = await getDoc(savingRef);
+  
+  if (!savingDoc.exists()) throw new Error('Saving not found');
+  if (savingDoc.data()?.currentAmount > 0) {
+    throw new Error('Cannot delete saving with contributions');
+  }
+
+  await deleteDoc(savingRef);
+};
+
+const SAVINGS_COLLECTION = 'savings';
+const INVITATIONS_COLLECTION = 'savingsInvitations';
+
+export const savingsService = {
+  // Savings operations
+  async createSavings(savings: Omit<Savings, 'createdAt' | 'updatedAt'>): Promise<string> {
+    const now = new Date();
+    const savingsData = {
+      ...savings,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const docRef = await addDoc(collection(db, SAVINGS_COLLECTION), savingsData);
+    return docRef.id;
+  },
+
+  async updateSavings(id: string, updates: Partial<Savings>): Promise<void> {
+    const savingsRef = doc(db, SAVINGS_COLLECTION, id);
+    await updateDoc(savingsRef, {
+      ...updates,
+      updatedAt: new Date(),
+    });
+  },
+
+  async getSavings(id: string): Promise<SavingsWithId | null> {
+    const savingsRef = doc(db, SAVINGS_COLLECTION, id);
+    const savingsDoc = await getDoc(savingsRef);
+    
+    if (!savingsDoc.exists()) {
+      return null;
+    }
+
+    return {
+      id: savingsDoc.id,
+      ...savingsDoc.data(),
+    } as SavingsWithId;
+  },
+
+  async deleteSavings(id: string): Promise<void> {
+    const savingsRef = doc(db, SAVINGS_COLLECTION, id);
+    await deleteDoc(savingsRef);
+  },
+
+  async getUserSavings(userId: string): Promise<SavingsWithId[]> {
+    const q = query(
+      collection(db, SAVINGS_COLLECTION),
+      where('members', 'array-contains', userId)
+    );
+
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    } as SavingsWithId));
+  },
+
+  // Contribution operations
+  async addContribution(savingsId: string, userId: string, amount: number, note: string = ''): Promise<void> {
+    const savingsRef = doc(db, SAVINGS_COLLECTION, savingsId);
+    const savingsDoc = await getDoc(savingsRef);
+    
+    if (!savingsDoc.exists()) {
+      throw new Error('Savings not found');
+    }
+
+    const savingsData = savingsDoc.data() as Savings;
+    const newCurrentAmount = savingsData.currentAmount + amount;
+
+    if (newCurrentAmount > savingsData.targetAmount) {
+      throw new Error('Contribution would exceed target amount');
+    }
+
+    const contribution = {
+      id: uuidv4(),
+      userId,
+      amount,
+      note,
+      createdAt: new Date(),
+    };
+
+    await updateDoc(savingsRef, {
+      currentAmount: newCurrentAmount,
+      contributions: arrayUnion(contribution),
+      updatedAt: new Date(),
+    });
+  },
+
+  // Member operations
+  async addMember(savingsId: string, userId: string): Promise<void> {
+    const savingsRef = doc(db, SAVINGS_COLLECTION, savingsId);
+    await updateDoc(savingsRef, {
+      members: arrayUnion(userId),
+      updatedAt: new Date(),
+    });
+  },
+
+  async removeMember(savingsId: string, userId: string): Promise<void> {
+    const savingsRef = doc(db, SAVINGS_COLLECTION, savingsId);
+    const savingsDoc = await getDoc(savingsRef);
+    
+    if (!savingsDoc.exists()) {
+      throw new Error('Savings not found');
+    }
+
+    const savingsData = savingsDoc.data() as Savings;
+    const updatedMembers = savingsData.members.filter(id => id !== userId);
+
+    await updateDoc(savingsRef, {
+      members: updatedMembers,
+      updatedAt: new Date(),
+    });
+  },
+
+  // Invitation operations
+  async createInvitation(invitation: Omit<SavingsInvitation, 'createdAt' | 'updatedAt'>): Promise<string> {
+    const now = new Date();
+    const invitationData = {
+      ...invitation,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const docRef = await addDoc(collection(db, INVITATIONS_COLLECTION), invitationData);
+    return docRef.id;
+  },
+
+  async updateInvitation(id: string, updates: Partial<SavingsInvitation>): Promise<void> {
+    const invitationRef = doc(db, INVITATIONS_COLLECTION, id);
+    await updateDoc(invitationRef, {
+      ...updates,
+      updatedAt: new Date(),
+    });
+  },
+
+  async getInvitation(id: string): Promise<SavingsInvitationWithId | null> {
+    const invitationRef = doc(db, INVITATIONS_COLLECTION, id);
+    const invitationDoc = await getDoc(invitationRef);
+    
+    if (!invitationDoc.exists()) {
+      return null;
+    }
+
+    return {
+      id: invitationDoc.id,
+      ...invitationDoc.data(),
+    } as SavingsInvitationWithId;
+  },
+
+  async getInvitationsByInvitee(inviteeId: string): Promise<SavingsInvitationWithId[]> {
+    const q = query(
+      collection(db, INVITATIONS_COLLECTION),
+      where('inviteeId', '==', inviteeId)
+    );
+
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    } as SavingsInvitationWithId));
+  },
+
+  async getInvitationsBySavings(savingsId: string): Promise<SavingsInvitationWithId[]> {
+    const q = query(
+      collection(db, INVITATIONS_COLLECTION),
+      where('savingsId', '==', savingsId)
+    );
+
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    } as SavingsInvitationWithId));
+  },
+
+  async acceptInvitation(invitationId: string, userId: string): Promise<void> {
+    const invitationRef = doc(db, INVITATIONS_COLLECTION, invitationId);
+    const invitationDoc = await getDoc(invitationRef);
+    
+    if (!invitationDoc.exists()) {
+      throw new Error('Invitation not found');
+    }
+
+    const invitationData = invitationDoc.data() as SavingsInvitation;
+    
+    // Update invitation status
+    await updateDoc(invitationRef, {
+      status: 'accepted',
+      inviteeId: userId,
+      updatedAt: new Date(),
+    });
+
+    // Add user to savings members
+    await this.addMember(invitationData.savingsId, userId);
+  },
+
+  async rejectInvitation(invitationId: string): Promise<void> {
+    const invitationRef = doc(db, INVITATIONS_COLLECTION, invitationId);
+    await updateDoc(invitationRef, {
+      status: 'rejected',
+      updatedAt: new Date(),
+    });
+  },
+};

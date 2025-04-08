@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../firebase/config';
@@ -29,11 +28,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   
-  const refreshUserData = async () => {
-    if (!currentUser) return;
-    const data = await fetchUserData(currentUser);
-    if (data) {
+  const refreshUserData = async (user: User) => {
+    try {
+      const data = await fetchUserData(user);
+      if (!data) {
+        throw new Error('Failed to fetch user data');
+      }
       setUserData(data);
+      return data;
+    } catch (error) {
+      console.error('Error refreshing user data:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to refresh user data. Please try again.',
+        variant: 'destructive',
+      });
+      throw error;
     }
   };
 
@@ -41,9 +51,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user) {
-        const data = await fetchUserData(user);
-        if (data) {
+        try {
+          const data = await refreshUserData(user);
           setUserData(data);
+        } catch (error) {
+          console.error('Error setting up user data:', error);
+          setUserData(null);
         }
       } else {
         setUserData(null);
@@ -57,10 +70,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signup = async (email: string, password: string, name: string) => {
     try {
       const user = await signupUser(email, password, name);
-      const userData = await fetchUserData(user);
-      if (userData) {
-        setUserData(userData);
-      }
+      const userData = await refreshUserData(user);
       
       toast({
         title: 'Account created',
@@ -79,7 +89,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string) => {
     try {
-      await loginUser(email, password);
+      const user = await loginUser(email, password);
+      await refreshUserData(user);
+      
       toast({
         title: 'Welcome back!',
         description: 'You have successfully logged in.',
@@ -98,6 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const googleSignIn = async () => {
     try {
       const user = await googleSignInUser();
+      const newUserData = await refreshUserData(user);
       
       // Check if it's a new user by comparing userData state before and after
       if (!userData || userData.uid !== user.uid) {
@@ -125,6 +138,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     try {
       await logoutUser();
+      setUserData(null);
       toast({
         title: 'Logged out',
         description: 'You have been logged out successfully.',
@@ -168,14 +182,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     logout,
     googleSignIn,
     resetPassword,
-    refreshUserData,
+    refreshUserData: () => currentUser ? refreshUserData(currentUser) : Promise.reject(new Error('No user logged in')),
     loading,
     isAdmin,
   };
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 };
