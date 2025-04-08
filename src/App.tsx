@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -32,6 +31,7 @@ import SavingsGoalDetail from './pages/SavingsGoalDetail';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 import Contact from './pages/Contact';
+import { Loans } from './pages/Loans';
 
 const queryClient = new QueryClient();
 
@@ -76,6 +76,9 @@ function App() {
                 <Route path="/savings/:id" element={<PrivateRoute element={<SavingsGoalDetail />} />} />
                 <Route path="/financial-strategies" element={<PrivateRoute element={<FinancialStrategies />} />} />
                 <Route path="/non-financial-support" element={<PrivateRoute element={<NonFinancialSupport />} />} />
+                
+                {/* Loans Route */}
+                <Route path="/loans" element={<PrivateRoute element={<Loans />} />} />
                 
                 {/* Static Pages */}
                 <Route path="/privacy" element={<Privacy />} />

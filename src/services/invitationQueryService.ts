@@ -1,5 +1,4 @@
-
-import { db } from '@/firebase/config';
+import { db } from '../config/firebase';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { SavingsInvitation } from '@/types/invitation';
 

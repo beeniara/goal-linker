@@ -1,5 +1,5 @@
 import { doc, getDoc, updateDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
-import { db } from '@/firebase/config';
+import { db } from '../config/firebase';
 import { InvitationResponse } from '@/types/invitation';
 
 /**

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, onAuthStateChanged } from 'firebase/auth';
-import { auth } from '../firebase/config';
+import { User, onAuthStateChanged, getAuth } from 'firebase/auth';
+import { db } from '../config/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { UserData, AuthContextType } from '@/types/auth';
 import { 
@@ -11,6 +11,8 @@ import {
   googleSignInUser, 
   resetUserPassword 
 } from '@/services/authService';
+
+const auth = getAuth();
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 

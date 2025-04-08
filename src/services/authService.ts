@@ -1,4 +1,3 @@
-
 import { 
   User,
   createUserWithEmailAndPassword, 
@@ -7,11 +6,14 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   sendPasswordResetEmail,
-  updateProfile
+  updateProfile,
+  getAuth
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase/config';
+import { db } from '../config/firebase';
 import { UserData } from '@/types/auth';
+
+const auth = getAuth();
 
 export const fetchUserData = async (user: User): Promise<UserData | null> => {
   try {

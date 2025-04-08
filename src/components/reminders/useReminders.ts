@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { collection, getDocs, query, where, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, orderBy } from 'firebase/firestore';
-import { db } from '@/firebase/config';
+import { db } from '@/config/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { ReminderItem } from '@/types/reminder';
 

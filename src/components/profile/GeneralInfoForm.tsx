@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -9,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { doc, updateDoc } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
-import { db, auth } from '@/firebase/config';
+import { db, auth } from '@/config/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { UserData } from '@/types/auth';
 

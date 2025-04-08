@@ -1,12 +1,10 @@
-
 import React, { useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { auth, storage } from '@/firebase/config';
+import { auth, storage, db } from '@/config/firebase';
 import { updateProfile } from 'firebase/auth';
 import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '@/firebase/config';
 import { useToast } from '@/hooks/use-toast';
 import { UserData } from '@/types/auth';
 import { Image } from 'lucide-react';

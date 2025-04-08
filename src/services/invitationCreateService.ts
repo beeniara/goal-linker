@@ -1,5 +1,4 @@
-
-import { db } from '@/firebase/config';
+import { db } from '../config/firebase';
 import { collection, addDoc, getDocs, query, where, serverTimestamp, doc, updateDoc, DocumentData, DocumentReference } from 'firebase/firestore';
 import { sendEmailNotification } from './notificationService';
 import { SavingsInvitation, InvitationResponse } from '@/types/invitation';

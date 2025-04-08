@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PiggyBank, ArrowLeft } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/firebase/config';
+import { db } from '../config/firebase';
 import { GoalHeader } from '@/components/savings/SavingsGoalDetails/GoalHeader';
 import { SavingsProgress } from '@/components/savings/SavingsGoalDetails/SavingsProgress';
 import { ContributionForm } from '@/components/savings/SavingsGoalDetails/ContributionForm';

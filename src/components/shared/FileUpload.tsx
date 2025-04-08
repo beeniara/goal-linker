@@ -1,7 +1,6 @@
-
 import React, { useState } from 'react';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { storage } from '@/firebase/config';
+import { storage } from '../../config/firebase';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { File, X, FileText, Image, Paperclip } from 'lucide-react';
